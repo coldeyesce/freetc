@@ -561,7 +561,7 @@ export default function Home() {
               )}
               title={isDark ? "切换到浅色" : "切换到深色"}
             >
-              {isDark ? "🌙 Dark" : "☀️ Light"}
+              {isDark ? '☀️ Light' : '🌙 Dark'}
             </button>
             {renderButton()}
           </div>
@@ -581,16 +581,21 @@ export default function Home() {
           </div>
           <div className="flex flex-col md:w-auto lg:flex-row xl:flex-row 2xl:flex-row items-center gap-2">
             <span className="text-xs sm:text-sm opacity-80">上传接口：</span>
-            <select
-              value={selectedOption}
-              onChange={handleSelectChange}
-              className="text-sm px-3 py-2 rounded-xl bg-neutral-900/80 border border-neutral-800 text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+      <select
+        value={selectedOption}
+        onChange={handleSelectChange}
+        className={
+            `text-sm px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ` +
+            (isDark
+            ? `bg-neutral-900/80 border border-neutral-800 text-neutral-100`
+            : `bg-white border border-neutral-200 text-neutral-900 shadow-sm`)
+            }
             >
-              <option value="tg">TG(会失效)</option>
-              <option value="tgchannel">TG_Channel</option>
-              <option value="r2">R2</option>
-              <option value="58img">58img</option>
-            </select>
+  <option value="tg">TG(会失效)</option>
+  <option value="tgchannel">TG_Channel</option>
+  <option value="r2">R2</option>
+  <option value="58img">58img</option>
+</select>
           </div>
         </div>
 
@@ -754,9 +759,10 @@ export default function Home() {
       )}
 
       {/* 底栏 */}
-      <div className="fixed inset-x-0 bottom-0 h-[60px] backdrop-blur border-t border-neutral-900 w-full flex z-50 justify-center items-center" style={{background: isDark ? "rgba(10,10,10,0.8)" : "rgba(255,255,255,0.8)"}}>
-        <Footer />
-      </div>
+      <div className="fixed inset-x-0 bottom-0 h-[60px] backdrop-blur w-full flex z-50 justify-center items-center"
+         style={{background: isDark ? "rgba(10,10,10,0.8)" : "rgba(255,255,255,0.8)"}}>
+      <Footer />
+</div>
     </main>
   );
 }
