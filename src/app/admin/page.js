@@ -1,9 +1,12 @@
 'use client'
-import { signOut } from "next-auth/react"
+impimport Link from 'next/link';
+
 import Table from "@/components/Table"
 import { useState, useEffect, useCallback } from 'react';
 import { ToastContainer, toast } from "react-toastify";
-import Link from 'next/link'
+
+  import { useRouter } from 'next/navigation';
+
 
 // --- 新增：智能请求（只在原接口不可用时回退，不改你能用的逻辑） ---
 async function tryFetchJSON(url, init) {
@@ -30,6 +33,8 @@ export default function Admin() {
   const [inputPage, setInputPage] = useState(1);
   const [view, setView] = useState('list'); // 'list' | 'log'
   const [searchQuery, setSearchQuery] = useState('');
+  const router = useRouter();
+  
 
   // --- 仅当原 POST /api/admin/${view} 不可用时，做兜底 ---
   const getListdata = useCallback(async (page) => {
@@ -165,9 +170,17 @@ export default function Admin() {
   };
 
   const handleViewToggle = () => {
-    setView(view === 'list' ? 'log' : 'list');
+    coconst newView = view === 'list' ? 'log' : 'list';
+  setView(newView);
+  if (newView === 'log') {
+    router.push('/admin/logs');
+  } else {
+    router.push('/admin');
+  }
     setCurrentPage(1);
-    setInputPage(1);
+  setInputPage(1);
+
+       
   };
 
   const handleSearch = (event) => {
@@ -188,6 +201,8 @@ export default function Admin() {
               onClick={handleViewToggle}
             >
               切换到 {view === 'list' ? '日志页' : '数据页'}
+    c
+  
             </button>
 
             <form onSubmit={handleSearch} className="hidden sm:flex items-center">
