@@ -759,9 +759,9 @@ export default function Home() {
       )}
 
       {/* 底栏 */}
-      <div className="fixed inset-x-0 bottom-0 h-[60px] backdrop-blur w-full flex z-50 justify-center items-center"
-         style={{background: isDark ? "rgba(10,10,10,0.8)" : "rgba(255,255,255,0.8)"}}>
-      <Footer />
+<div className="fixed inset-x-0 bottom-0 h-[60px] backdrop-blur border-t border-neutral-900 w-full flex z-50 justify-center items-center"
+     style={{background: isDark ? "rgba(10,10,10,0.8)" : "rgba(255,255,255,0.8)"}}>
+  <Footer />
 </div>
     </main>
   );
