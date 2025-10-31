@@ -1,161 +1,84 @@
-'use client'
-import { signOut } from "next-auth/react"
-import Table from "@/components/Table"
-import { useState, useEffect, useCallback } from 'react';
-import { ToastContainer, toast } from "react-toastify";
-import Link from 'next/link'
-// import { toast } from "react-toastify";
+// ===============================
+if (!query.trim()) return items;
+const q = query.toLowerCase();
+return items.filter((x) => (x.name || x.url || "").toLowerCase().includes(q));
+}, [items, query]);
 
 
+const copy = async (text) => {
+try { await navigator.clipboard.writeText(text); toast.success("已复制链接"); }
+catch { toast.error("复制失败"); }
+};
 
 
-export default function Admin() {
-  const [listData, setListData] = useState([])
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchTotal, setSearchTotal] = useState(0); // 初始化为0，因为初始时还没有搜索结果
-  const [inputPage, setInputPage] = useState(1);
-  const [view, setView] = useState('list'); // 'list' 或 'log'，默认为 'list'
-  const [searchQuery, setSearchQuery] = useState('');
+const del = async (it) => {
+try {
+const id = it.id || it._id || it.key || it.url;
+const res = await fetch(`/api/admin/delete?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+if (!res.ok) throw new Error("删除失败");
+toast.success("已删除");
+setItems((arr) => arr.filter((x) => (x.id||x._id||x.key||x.url) !== id));
+} catch (e) {
+toast.error(e?.message || "删除失败");
+}
+};
 
 
-
-  const getListdata = useCallback(async (page) => {
-    try {
-      const res = await fetch(`/api/admin/${view}`, {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
-        },
-        body: JSON.stringify({
-          page: (page - 1),
-          query: searchQuery, // 传递搜索查询
-        })
-      })
-      const res_data = await res.json()
-      if (!res_data?.success) {
-        toast.error(res_data.message)
-      } else {
-        setListData(res_data.data)
-        const totalPages = Math.ceil(res_data.total / 10);
-        setSearchTotal(totalPages);
-      }
-
-    } catch (error) {
-      toast.error(error.message)
-    }
-
-  })
-
-
-  useEffect(() => {
-    getListdata(currentPage)
-  }, [currentPage, view]);
-
-  // 分页控制按钮
-  const handleNextPage = () => {
-    const nextPage = currentPage + 1;
-    if (nextPage > searchTotal) { // 检查下一页是否在总页数范围内
-      toast.error('当前已为最后一页！')
-    }
-    if (nextPage <= searchTotal) { // 检查下一页是否在总页数范围内
-      setCurrentPage(nextPage);
-      setInputPage(nextPage)
-    }
-
-  };
-
-  const handlePrevPage = () => {
-    const prevPage = currentPage - 1;
-    if (prevPage >= 1) { // 检查上一页是否在总页数范围内
-      setCurrentPage(prevPage);
-      setInputPage(prevPage)
-      // searchVideo(prevPage);
-    }
-
-  };
+return (
+<main
+className={`min-h-screen px-4 pb-16 ${isDark ? "bg-neutral-950 text-neutral-100" : "bg-neutral-50 text-neutral-900"}`}
+style={{
+backgroundImage: isDark
+? "radial-gradient(1000px 600px at 10% -10%, rgba(99,102,241,0.15), transparent), radial-gradient(800px 500px at 90% -10%, rgba(34,211,238,0.10), transparent)"
+: "radial-gradient(1000px 600px at 10% -10%, rgba(99,102,241,0.08), transparent), radial-gradient(800px 500px at 90% -10%, rgba(14,165,233,0.08), transparent)",
+}}
+>
+{/* 顶部工具条 */}
+<div className={`sticky top-0 z-40 -mx-4 px-4 h-[64px] flex items-center justify-between border-b backdrop-blur ${isDark ? 'bg-neutral-950/70 border-neutral-900/70' : 'bg-white/70 border-neutral-200/80'}`}>
+<div className="flex items-center gap-2">
+<Tab href="/admin" active={pathname === "/admin"}>图库</Tab>
+<Tab href="/admin/logs" active={pathname?.startsWith("/admin/log")}>日志</Tab>
+<div className="ml-3 text-xs opacity-70">共 {items.length} 条</div>
+</div>
+<div className="flex items-center gap-2">
+<div className={`flex items-center gap-2 rounded-xl border px-3 h-9 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+<span className="text-xs opacity-60">搜索</span>
+<input
+className="bg-transparent outline-none text-sm w-56"
+placeholder="名称 / 链接"
+value={query}
+onChange={(e) => setQuery(e.target.value)}
+/>
+</div>
+<button onClick={load} disabled={loading} className={`h-9 px-3 rounded-xl text-sm text-white ${loading ? 'bg-indigo-500/70' : 'bg-indigo-600 hover:bg-indigo-500'}`}>
+{loading ? '刷新中…' : '刷新'}
+</button>
+</div>
+</div>
 
 
-  const handleJumpPage = () => {
-    const page = parseInt(inputPage, 10);
-    if (!isNaN(page) && page >= 1 && page <= searchTotal) {
-      setCurrentPage(page);
-    } else {
-      toast.error('请输入有效的页码！');
-    }
-    // setInputPage(""); // 清空输入框
-  };
+{/* 列表 */}
+<div className="mx-auto max-w-6xl mt-5 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+{filtered.map((it, idx) => (
+<div key={idx} className={`rounded-2xl border p-3 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/90 border-neutral-200'}`}>
+<div className="relative w-full h-40 overflow-hidden rounded-xl border border-black/10 bg-neutral-100 dark:bg-neutral-800">
+{String(it.type||'').startsWith('video/') ? (
+<video src={it.url} className="w-full h-full object-cover" controls />
+) : (
+<Image src={it.url} alt={it.name||`item-${idx}`} fill className="object-cover" />
+)}
+</div>
+<div className="mt-3 text-xs break-all opacity-80 h-10 overflow-hidden">{it.url}</div>
+<div className="mt-3 flex items-center justify-between">
+<button onClick={() => copy(it.url)} className="h-9 px-3 rounded-xl text-sm text-white bg-emerald-600 hover:bg-emerald-500">复制</button>
+<button onClick={() => del(it)} className="h-9 px-3 rounded-xl text-sm text-white bg-rose-600 hover:bg-rose-500">删除</button>
+</div>
+</div>
+))}
+</div>
 
-  const handleViewToggle = () => {
-    setView(view === 'list' ? 'log' : 'list');
-    setCurrentPage(1); // 切换视图时重置到第一页
-    setInputPage(1);
-  };
 
-
-  const handleSearch = (event) => {
-    event.preventDefault();
-    setCurrentPage(1);
-    setInputPage(1);
-    getListdata(1);
-  };
-
-  return (
-    <>
-      <div className="overflow-auto h-full flex w-full min-h-screen flex-col items-center justify-between">
-        <header className="fixed top-0 h-[50px]  left-0 w-full border-b bg-white flex z-50 justify-center items-center">
-          <div className="flex justify-between items-center w-full max-w-4xl px-4">
-            <button className='text-white px-4 py-2  transition ease-in-out delay-150 bg-blue-500 hover:scale-110 hover:bg-indigo-500 duration-300  rounded '
-              onClick={handleViewToggle}>
-              切换到 {view === 'list' ? '日志页' : '数据页'}
-            </button>
-            <form onSubmit={handleSearch} className="hidden sm:flex items-center">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="border rounded p-2 w-40 mr-2"
-                placeholder="搜索"
-              />
-              <button type="submit" className="text-white px-4 py-2 transition ease-in-out delay-150 bg-blue-500 hover:scale-110 hover:bg-indigo-500 duration-300 rounded">
-                搜索
-              </button>
-            </form>
-          </div>
-          <Link href="/"  className="hidden sm:flex"> <button className="px-4 py-2 mx-2 w-28  sm:w-28 md:w-20 lg:w-16 xl:w-16  2xl:w-20 bg-blue-500 text-white rounded ">主页</button></Link>
-          <button onClick={() => signOut({ callbackUrl: "/" })} className="px-4 py-2 mx-2 w-28  sm:w-28 md:w-20 lg:w-16 xl:w-16  2xl:w-20 bg-blue-500 text-white rounded ">登出</button>
-        </header>
-
-        <main className="my-[60px] w-9/10  sm:w-9/10 md:w-9/10 lg:w-9/10 xl:w-3/5 2xl:w-full">
-
-          <Table data={listData} />
-
-        </main>
-        <div className="fixed inset-x-0 bottom-0 h-[50px]  w-full  flex  z-50 justify-center items-center bg-white ">
-          <div className="pagination mt-5 mb-5 flex justify-center items-center">
-            <button className=' text-xs sm:text-sm transition ease-in-out delay-150 bg-blue-500  hover:scale-110 hover:bg-indigo-500 duration-300p-2 p-2 rounded mr-5' onClick={handlePrevPage} disabled={currentPage === 1}>
-              上一页
-            </button>
-            <span className="text-xs sm:text-sm">第 {`${currentPage}/${searchTotal}`} 页</span>
-            <button className='text-xs sm:text-sm transition ease-in-out delay-150 bg-blue-500  hover:scale-110 hover:bg-indigo-500 duration-300 p-2 rounded ml-5' onClick={handleNextPage}>
-              下一页</button>
-            <div className="ml-5 flex items-center">
-              <input
-                type="number"
-                value={inputPage}
-                onChange={(e) => setInputPage(e.target.value)}
-                className="border rounded p-2 w-20"
-                placeholder="页码"
-              />
-              <button className='text-xs sm:text-sm transition ease-in-out delay-150 bg-blue-500 hover:scale-110 hover:bg-indigo-500 duration-300 p-2 rounded ml-2' onClick={handleJumpPage}>
-                跳转
-              </button>
-            </div>
-          </div>
-        </div>
-        <ToastContainer />
-      </div>
-    </>
-
-  )
+<ToastContainer position="top-right" autoClose={2200} theme={isDark ? 'dark' : 'light'} />
+</main>
+);
 }
