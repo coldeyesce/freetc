@@ -323,9 +323,9 @@ export default function Home() {
             let errorMsg;
             try {
               const errorData = await response.json();
-              errorMsg = errorData.message || `上传 ${f.name} 图片时出错`;
+              errorMsg = errorData.message || `上传 ${f.name} 时出错`;
             } catch {
-              errorMsg = `上传 ${f.name} 图片时发生未知错误`;
+              errorMsg = `上传 ${f.name} 时发生未知错误`;
             }
             switch (response.status) {
               case 400:
@@ -344,16 +344,16 @@ export default function Home() {
                 toast.error(`未授权: ${errorMsg}`);
                 break;
               default:
-                toast.error(`上传 ${f.name} 图片时出错: ${errorMsg}`);
+                toast.error(`上传 ${f.name} 时出错: ${errorMsg}`);
             }
           }
         } catch (error) {
-          toast.error(`上传 ${f.name} 图片时出错`);
+          toast.error(`上传 ${f.name} 时出错`);
         }
       }
 
       setUploadedFilesNum((n) => n + successCount);
-      toast.success(`已成功上传 ${successCount} 张图片`);
+      toast.success(`已成功上传 ${successCount} 个文件`);
     } catch (error) {
       console.error("上传过程中出现错误:", error);
       toast.error("上传错误");
@@ -443,7 +443,12 @@ export default function Home() {
                       readOnly
                       value={item.text}
                       onClick={item.onClick}
-                      className="px-3 my-1 py-2 border border-neutral-800/80 rounded-lg bg-neutral-900 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 placeholder-neutral-500"
+                      className={cx(
+                      "px-3 my-1 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 placeholder-neutral-500",
+                      isDark 
+                        ? "border-neutral-800/80 bg-neutral-900 text-neutral-100" 
+                        : "border-neutral-300/80 bg-white text-neutral-900"
+                    )}
                     />
                   ))}
                 </div>
@@ -574,12 +579,12 @@ export default function Home() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col">
             <div className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-500 bg-clip-text text-transparent">
-              免费图床服务
+              免费文件托管服务
             </div>
             <div className={cx("mt-2 text-sm", C.textMuted)}>
-              支持图片、视频等多种文件格式 • 最大 5 MB • 
+              支持图片、视频、文档等多种文件格式 • 单文件最大 5 MB • 
               已托管 <span className="text-cyan-500 font-medium">{Total}</span> 个文件 • 
-              IP: <span className="text-cyan-500 font-medium">{IP}</span>
+              你的 IP: <span className="text-cyan-500 font-medium">{IP}</span>
             </div>
           </div>
           <div className="flex flex-col md:w-auto lg:flex-row xl:flex-row 2xl:flex-row items-center gap-2">
@@ -650,8 +655,8 @@ export default function Home() {
                 <div className="text-6xl mb-4 opacity-60">📤</div>
                 <div className="opacity-70 text-sm text-center px-4">
                   <div className="font-medium mb-2">拖拽文件到这里上传</div>
-                  <div className="text-xs opacity-60">或点击下方"选择图片"按钮</div>
-                  <div className="text-xs opacity-60 mt-2">支持 Ctrl+V 粘贴截图</div>
+                  <div className="text-xs opacity-60">或点击下方"选择文件"按钮</div>
+                  <div className="text-xs opacity-60 mt-2">支持 Ctrl+V 粘贴截图或文件</div>
                 </div>
               </div>
             )}
@@ -666,7 +671,7 @@ export default function Home() {
               className="w-full h-11 bg-gradient-to-r from-indigo-600 to-cyan-500 cursor-pointer flex items-center justify-center text-white text-sm font-medium"
             >
               <FontAwesomeIcon icon={faImages} className="mr-2 w-5 h-5" />
-              选择图片
+              选择文件
             </label>
             <input id="file-upload" type="file" className="hidden" onChange={handleFileChange} multiple />
           </div>
