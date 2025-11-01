@@ -217,9 +217,11 @@ export default function AdminPage() {
   }, [items, query]);
 
   // 复制链接
-  const copy = async (text) => {
-    try { 
-      await navigator.clipboard.writeText(text); 
+  const copy = async (url) => {
+    try {
+      // 将相对路径转换为完整的URL（包含域名）
+      const fullUrl = getImageUrl(url);
+      await navigator.clipboard.writeText(fullUrl); 
       toast.success("已复制链接"); 
     } catch { 
       toast.error("复制失败"); 
