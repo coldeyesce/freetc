@@ -573,10 +573,13 @@ export default function Home() {
         {/* 标题 + 接口选择 */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col">
-            <div className="text-xl font-semibold">图片或视频上传</div>
-            <div className={cx("mt-1 text-sm", C.textMuted)}>
-              上传文件最大 5 MB；本站已托管 <span className="text-cyan-500 font-medium">{Total}</span> 张图片；你的 IP：
-              <span className="text-cyan-500 font-medium">{IP}</span>
+            <div className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-500 bg-clip-text text-transparent">
+              免费图床服务
+            </div>
+            <div className={cx("mt-2 text-sm", C.textMuted)}>
+              支持图片、视频等多种文件格式 • 最大 5 MB • 
+              已托管 <span className="text-cyan-500 font-medium">{Total}</span> 个文件 • 
+              IP: <span className="text-cyan-500 font-medium">{IP}</span>
             </div>
           </div>
           <div className="flex flex-col md:w-auto lg:flex-row xl:flex-row 2xl:flex-row items-center gap-2">
@@ -643,8 +646,13 @@ export default function Home() {
             ))}
 
             {selectedFiles.length === 0 && (
-              <div className="absolute -z-10 inset-0 flex items-center justify-center">
-                <div className="opacity-70 text-sm">拖拽文件到这里或将屏幕截图复制并粘贴到此处上传</div>
+              <div className="absolute -z-10 inset-0 flex flex-col items-center justify-center">
+                <div className="text-6xl mb-4 opacity-60">📤</div>
+                <div className="opacity-70 text-sm text-center px-4">
+                  <div className="font-medium mb-2">拖拽文件到这里上传</div>
+                  <div className="text-xs opacity-60">或点击下方"选择图片"按钮</div>
+                  <div className="text-xs opacity-60 mt-2">支持 Ctrl+V 粘贴截图</div>
+                </div>
               </div>
             )}
           </div>
