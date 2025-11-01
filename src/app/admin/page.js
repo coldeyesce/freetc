@@ -51,11 +51,38 @@ function SkeletonCard({ isDark }) {
   );
 }
 
+// 转换图片URL为可访问的完整路径
+function getImageUrl(url) {
+  if (!url) return '';
+  
+  // 如果已经是完整的URL（http/https开头），直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // 如果是相对路径，需要添加 /api 前缀
+  if (url.startsWith('/rfile/') || url.startsWith('/file/') || url.startsWith('/cfile/')) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${origin}/api${url}`;
+  }
+  
+  // 如果已经包含 /api，直接返回（添加 origin 如果有需要）
+  if (url.startsWith('/api/')) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${origin}${url}`;
+  }
+  
+  // 其他情况，尝试添加 origin
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return url.startsWith('/') ? `${origin}${url}` : url;
+}
+
 // 图片预览模态框
 function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
   if (!isOpen || !item) return null;
   
   const isVideo = String(item.type || '').startsWith('video/');
+  const imageUrl = getImageUrl(item.url);
   
   return (
     <div 
@@ -84,10 +111,10 @@ function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
         <div className="p-6">
           <div className="relative w-full aspect-video bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden mb-4">
             {isVideo ? (
-              <video src={item.url} className="w-full h-full object-contain" controls />
+              <video src={imageUrl} className="w-full h-full object-contain" controls />
             ) : (
               <Image 
-                src={item.url} 
+                src={imageUrl} 
                 alt={item.name || 'preview'} 
                 fill 
                 className="object-contain"
@@ -400,10 +427,10 @@ export default function AdminPage() {
                     onClick={() => handlePreview(it)}
                   >
                     {isVideo ? (
-                      <video src={it.url} className="w-full h-full object-cover" />
+                      <video src={getImageUrl(it.url)} className="w-full h-full object-cover" />
                     ) : (
                       <Image 
-                        src={it.url} 
+                        src={getImageUrl(it.url)} 
                         alt={it.name || `item-${idx}`} 
                         fill 
                         className="object-cover transition group-hover:scale-105"
