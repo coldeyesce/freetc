@@ -1,4 +1,3 @@
-
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
 const corsHeaders = {
@@ -10,30 +9,92 @@ const corsHeaders = {
 
 export const runtime = 'edge';
 
+// 获取当前时间
+async function get_nowTime() {
+  const options = {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  };
+  const timedata = new Date();
+  const formattedDate = new Intl.DateTimeFormat('zh-CN', options).format(timedata);
+  return formattedDate;
+}
 
-
-
-
+// 插入日志记录
+async function insertTgImgLog(DB, url, referer, ip, time) {
+  try {
+    await DB.prepare('INSERT INTO tgimglog (url, referer, ip, time) VALUES (?, ?, ?, ?)')
+      .bind(url, referer, ip, time)
+      .run();
+  } catch (error) {
+    console.error('Error inserting log:', error);
+  }
+}
 
 export async function DELETE(request) {
-  let { name } = await request.json()
-  const { env, cf, ctx } = getRequestContext();
-  try {
-    const setData = await env.IMG.prepare(`DELETE FROM imginfo WHERE url='${name}'`).run()
-    return Response.json({
-      "code": 200,
-      "success": true,
-      "message": setData.success,
-    });
-
-  } catch (error) {
+  const { env } = getRequestContext();
+  
+  if (!env.IMG) {
     return Response.json({
       "code": 500,
       "success": false,
-      "message": error.message,
+      "message": "Database not configured",
     }, {
       status: 500,
       headers: corsHeaders,
-    })
+    });
+  }
+
+  try {
+    let { name } = await request.json();
+    
+    if (!name) {
+      return Response.json({
+        "code": 400,
+        "success": false,
+        "message": "Missing file name",
+      }, {
+        status: 400,
+        headers: corsHeaders,
+      });
+    }
+
+    // 获取请求信息用于日志
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown';
+    const clientIp = ip ? ip.split(',')[0].trim() : 'Unknown';
+    const referer = request.headers.get('Referer') || '/admin';
+    const nowTime = await get_nowTime();
+
+    // 删除文件记录（使用参数化查询防止SQL注入）
+    const setData = await env.IMG.prepare('DELETE FROM imginfo WHERE url = ?').bind(name).run();
+    
+    // 记录删除操作到日志
+    await insertTgImgLog(env.IMG, name, `删除操作-${referer}`, clientIp, nowTime);
+
+    return Response.json({
+      "code": 200,
+      "success": true,
+      "message": "Deleted successfully",
+    }, {
+      status: 200,
+      headers: corsHeaders,
+    });
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    return Response.json({
+      "code": 500,
+      "success": false,
+      "message": error.message || "Internal server error",
+    }, {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 }
