@@ -92,13 +92,21 @@ export async function POST(request) {
 				const nowTime = await get_nowTime()
 				await insertImageData(env.IMG, `/rfile/${filename}`, Referer, clientIp, rating_index, nowTime);
 
-				// 记录上传操作到日志
+				// 记录上传操作到日志（必须确保数据库可用）
 				try {
-					const insertLog = env.IMG.prepare('INSERT INTO tgimglog (url, referer, ip, time) VALUES (?, ?, ?, ?)')
+					const logResult = await env.IMG.prepare('INSERT INTO tgimglog (url, referer, ip, time) VALUES (?, ?, ?, ?)')
 						.bind(`/rfile/${filename}`, `上传操作-${Referer}`, clientIp, nowTime)
 						.run();
+					// Cloudflare D1 执行成功会返回包含 meta 的对象
+					if (logResult && logResult.meta) {
+						console.log('Upload operation logged successfully:', { url: `/rfile/${filename}`, referer: Referer, ip: clientIp });
+					} else {
+						console.warn('Upload log result unclear:', logResult);
+					}
 				} catch (logError) {
 					console.error('Error logging upload:', logError);
+					console.error('Upload log details:', { url: `/rfile/${filename}`, referer: Referer, ip: clientIp, time: nowTime, error: logError.message });
+					// 即使日志失败，也继续返回成功结果
 				}
 
 				return Response.json({
@@ -121,11 +129,17 @@ export async function POST(request) {
 
 				// 即使出错也记录日志
 				try {
-					const insertLog = env.IMG.prepare('INSERT INTO tgimglog (url, referer, ip, time) VALUES (?, ?, ?, ?)')
+					const logResult = await env.IMG.prepare('INSERT INTO tgimglog (url, referer, ip, time) VALUES (?, ?, ?, ?)')
 						.bind(`/rfile/${filename}`, `上传操作(失败)-${Referer}`, clientIp, nowTime)
 						.run();
+					if (logResult && logResult.meta) {
+						console.log('Failed upload operation logged:', { url: `/rfile/${filename}`, referer: Referer, ip: clientIp });
+					} else {
+						console.warn('Failed upload log result unclear:', logResult);
+					}
 				} catch (logError) {
-					console.error('Error logging upload:', logError);
+					console.error('Error logging failed upload:', logError);
+					console.error('Failed upload log details:', { url: `/rfile/${filename}`, referer: Referer, ip: clientIp, time: nowTime, error: logError.message });
 				}
 
 				return Response.json({
