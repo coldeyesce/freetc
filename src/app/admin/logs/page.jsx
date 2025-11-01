@@ -311,6 +311,16 @@ export default function AdminLogsPage() {
       {/* 顶部工具条 */}
       <div className={`sticky top-0 z-40 -mx-4 px-4 h-[64px] flex items-center justify-between border-b backdrop-blur ${isDark ? 'bg-neutral-950/70 border-neutral-900/70' : 'bg-white/70 border-neutral-200/80'}`}>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link 
+            href="/" 
+            className={`px-3 h-9 inline-flex items-center rounded-xl text-sm border transition ${
+              isDark 
+                ? 'bg-transparent border-neutral-800 hover:bg-neutral-900 text-neutral-300' 
+                : 'bg-transparent border-neutral-300 hover:bg-neutral-100 text-neutral-700'
+            }`}
+          >
+            🏠 首页
+          </Link>
           <Tab href="/admin" active={pathname === "/admin"}>图库</Tab>
           <Tab href="/admin/logs" active={pathname?.startsWith("/admin/log")}>日志</Tab>
           <div className="ml-3 text-xs opacity-70">
