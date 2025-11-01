@@ -15,10 +15,28 @@ export async function POST(request) {
   try {
     // 检查数据库是否存在
     if (!env.IMG) {
+      console.error('Database IMG not configured');
       return Response.json({
         "code": 500,
         "success": false,
         "message": "Database not configured",
+        "data": [],
+      }, {
+        status: 500,
+        headers: corsHeaders,
+      });
+    }
+
+    // 测试数据库连接
+    try {
+      const testQuery = await env.IMG.prepare('SELECT COUNT(*) as total FROM tgimglog').first();
+      console.log('Database connection test successful, current log count:', testQuery?.total || 0);
+    } catch (dbError) {
+      console.error('Database connection test failed:', dbError);
+      return Response.json({
+        "code": 500,
+        "success": false,
+        "message": `Database error: ${dbError.message}`,
         "data": [],
       }, {
         status: 500,
