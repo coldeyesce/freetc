@@ -339,6 +339,29 @@ export default function AdminLogsPage() {
             />
           </div>
           <button 
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/admin/log/test');
+                const data = await res.json();
+                if (data.success) {
+                  toast.success(`日志测试成功！当前共有 ${data.details.totalLogs} 条日志`);
+                } else {
+                  toast.error(`日志测试失败: ${data.message}`);
+                }
+              } catch (e) {
+                toast.error('测试失败: ' + e.message);
+              }
+            }}
+            className={`h-9 px-3 rounded-xl text-sm transition ${
+              isDark 
+                ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' 
+                : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
+            }`}
+            title="测试日志功能"
+          >
+            🧪 测试
+          </button>
+          <button 
             onClick={() => load(page)} 
             disabled={loading} 
             className={`h-9 px-3 rounded-xl text-sm text-white transition ${loading ? 'bg-indigo-500/70 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'}`}
