@@ -77,12 +77,103 @@ function getImageUrl(url) {
   return url.startsWith('/') ? `${origin}${url}` : url;
 }
 
-// 图片预览模态框
+// 获取文件类型
+function getFileType(url, type) {
+  if (!url && !type) return 'unknown';
+  const urlLower = (url || '').toLowerCase();
+  const typeLower = String(type || '').toLowerCase();
+  
+  if (typeLower.startsWith('video/') || urlLower.match(/\.(mp4|webm|ogg|avi|mov)$/)) return 'video';
+  if (typeLower.startsWith('image/') || urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/)) return 'image';
+  if (urlLower.match(/\.(html|htm)$/)) return 'html';
+  if (urlLower.match(/\.(pdf)$/)) return 'pdf';
+  if (urlLower.match(/\.(txt|md)$/)) return 'text';
+  if (urlLower.match(/\.(js|jsx|ts|tsx)$/)) return 'code';
+  if (urlLower.match(/\.(css)$/)) return 'css';
+  return 'unknown';
+}
+
+// 文件预览模态框
 function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
   if (!isOpen || !item) return null;
   
-  const isVideo = String(item.type || '').startsWith('video/');
-  const imageUrl = getImageUrl(item.url);
+  const fileType = getFileType(item.url, item.type);
+  const fileUrl = getImageUrl(item.url);
+  
+  const renderPreview = () => {
+    switch (fileType) {
+      case 'video':
+        return (
+          <video src={fileUrl} className="w-full h-auto max-h-[70vh] rounded-lg" controls />
+        );
+      case 'html':
+        return (
+          <iframe 
+            src={fileUrl} 
+            className="w-full h-[70vh] rounded-lg border"
+            title="HTML Preview"
+            sandbox="allow-same-origin allow-scripts"
+          />
+        );
+      case 'pdf':
+        return (
+          <iframe 
+            src={fileUrl} 
+            className="w-full h-[70vh] rounded-lg border"
+            title="PDF Preview"
+          />
+        );
+      case 'text':
+      case 'code':
+      case 'css':
+        return (
+          <div className={`w-full h-[70vh] rounded-lg border overflow-auto p-4 ${
+            isDark ? 'bg-neutral-800 text-neutral-100' : 'bg-white text-neutral-900'
+          }`}>
+            <pre className="whitespace-pre-wrap font-mono text-sm">
+              {fileUrl ? '加载中...' : '无法预览此文件类型'}
+            </pre>
+          </div>
+        );
+      case 'unknown':
+        return (
+          <div className={`w-full h-[50vh] rounded-lg border flex items-center justify-center ${
+            isDark ? 'bg-neutral-800' : 'bg-neutral-100'
+          }`}>
+            <div className="text-center">
+              <div className="text-4xl mb-4">📄</div>
+              <div className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+                不支持预览此文件类型
+              </div>
+              <a 
+                href={fileUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className={`mt-4 inline-block px-4 py-2 rounded-lg text-sm ${
+                  isDark 
+                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white' 
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                在新标签页打开
+              </a>
+            </div>
+          </div>
+        );
+      default: // image
+        return (
+          <div className="relative w-full aspect-video bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden">
+            <Image 
+              src={fileUrl} 
+              alt={item.name || 'preview'} 
+              fill 
+              className="object-contain"
+              unoptimized
+            />
+          </div>
+        );
+    }
+  };
   
   return (
     <div 
@@ -98,7 +189,9 @@ function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
         <div className={`flex items-center justify-between px-6 py-4 border-b ${
           isDark ? 'border-neutral-800' : 'border-neutral-200'
         }`}>
-          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>预览</h3>
+          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            预览 - {fileType === 'html' ? 'HTML' : fileType === 'pdf' ? 'PDF' : fileType === 'video' ? '视频' : fileType === 'image' ? '图片' : '文件'}
+          </h3>
           <button
             onClick={onClose}
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
@@ -109,18 +202,8 @@ function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
           </button>
         </div>
         <div className="p-6">
-          <div className="relative w-full aspect-video bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden mb-4">
-            {isVideo ? (
-              <video src={imageUrl} className="w-full h-full object-contain" controls />
-            ) : (
-              <Image 
-                src={imageUrl} 
-                alt={item.name || 'preview'} 
-                fill 
-                className="object-contain"
-                unoptimized
-              />
-            )}
+          <div className="mb-4">
+            {renderPreview()}
           </div>
           <div className={`space-y-2 text-sm ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
             <div>
@@ -338,6 +421,16 @@ export default function AdminPage() {
       {/* 顶部工具条 */}
       <div className={`sticky top-0 z-40 -mx-4 px-4 h-[64px] flex items-center justify-between border-b backdrop-blur ${isDark ? 'bg-neutral-950/70 border-neutral-900/70' : 'bg-white/70 border-neutral-200/80'}`}>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link 
+            href="/" 
+            className={`px-3 h-9 inline-flex items-center rounded-xl text-sm border transition ${
+              isDark 
+                ? 'bg-transparent border-neutral-800 hover:bg-neutral-900 text-neutral-300' 
+                : 'bg-transparent border-neutral-300 hover:bg-neutral-100 text-neutral-700'
+            }`}
+          >
+            🏠 首页
+          </Link>
           <Tab href="/admin" active={pathname === "/admin"}>图库</Tab>
           <Tab href="/admin/logs" active={pathname?.startsWith("/admin/log")}>日志</Tab>
           <div className="ml-3 text-xs opacity-70">
@@ -423,23 +516,79 @@ export default function AdminPage() {
                     />
                   </div>
                   
-                  {/* 图片预览 */}
+                  {/* 文件预览 */}
                   <div 
-                    className="relative w-full h-40 overflow-hidden rounded-xl border border-black/10 bg-neutral-100 dark:bg-neutral-800 cursor-pointer"
+                    className="relative w-full h-40 overflow-hidden rounded-xl border border-black/10 bg-neutral-100 dark:bg-neutral-800 cursor-pointer flex items-center justify-center"
                     onClick={() => handlePreview(it)}
                   >
-                    {isVideo ? (
-                      <video src={getImageUrl(it.url)} className="w-full h-full object-cover" />
-                    ) : (
-                      <Image 
-                        src={getImageUrl(it.url)} 
-                        alt={it.name || `item-${idx}`} 
-                        fill 
-                        className="object-cover transition group-hover:scale-105"
-                        unoptimized
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition"></div>
+                    {(() => {
+                      const fileType = getFileType(it.url, it.type);
+                      switch (fileType) {
+                        case 'video':
+                          return (
+                            <>
+                              <video src={getImageUrl(it.url)} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition"></div>
+                            </>
+                          );
+                        case 'image':
+                          try {
+                            return (
+                              <>
+                                <Image 
+                                  src={getImageUrl(it.url)} 
+                                  alt={it.name || `item-${idx}`} 
+                                  fill 
+                                  className="object-cover transition group-hover:scale-105"
+                                  unoptimized
+                                  onError={(e) => {
+                                    // 如果图片加载失败，显示文件类型图标
+                                    e.target.style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition"></div>
+                              </>
+                            );
+                          } catch {
+                            return (
+                              <div className="text-center">
+                                <div className="text-4xl mb-2">🖼️</div>
+                                <div className="text-xs opacity-70">图片</div>
+                              </div>
+                            );
+                          }
+                        case 'html':
+                          return (
+                            <div className="text-center">
+                              <div className="text-4xl mb-2">🌐</div>
+                              <div className="text-xs opacity-70">HTML</div>
+                            </div>
+                          );
+                        case 'pdf':
+                          return (
+                            <div className="text-center">
+                              <div className="text-4xl mb-2">📄</div>
+                              <div className="text-xs opacity-70">PDF</div>
+                            </div>
+                          );
+                        case 'text':
+                        case 'code':
+                        case 'css':
+                          return (
+                            <div className="text-center">
+                              <div className="text-4xl mb-2">📝</div>
+                              <div className="text-xs opacity-70">文本/代码</div>
+                            </div>
+                          );
+                        default:
+                          return (
+                            <div className="text-center">
+                              <div className="text-4xl mb-2">📎</div>
+                              <div className="text-xs opacity-70">文件</div>
+                            </div>
+                          );
+                      }
+                    })()}
                   </div>
                   
                   {/* URL显示 */}
