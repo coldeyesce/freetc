@@ -1,281 +1,503 @@
-'use client'
-impimport Link from 'next/link';
-
-import Table from "@/components/Table"
-import { useState, useEffect, useCallback } from 'react';
+"use client";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-  import { useRouter } from 'next/navigation';
-
-
-// --- 新增：智能请求（只在原接口不可用时回退，不改你能用的逻辑） ---
-async function tryFetchJSON(url, init) {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  if (!res.ok) {
-    const snippet = text?.slice(0, 120) || res.status;
-    const err = new Error(`HTTP ${res.status}: ${snippet}`);
-    err.status = res.status;
-    throw err;
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    // 返回的不是 JSON，也把原文透出，便于定位
-    throw new Error(text || "返回的不是 JSON");
-  }
+// 主题Hook
+function useTheme() {
+  const [isDark, setIsDark] = useState(true);
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
+    if (saved) setIsDark(saved === "dark");
+    else if (typeof window !== "undefined" && window.matchMedia) {
+      setIsDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
+    }
+  }, []);
+  return { isDark };
 }
 
-export default function Admin() {
-  const [listData, setListData] = useState([])
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchTotal, setSearchTotal] = useState(0);
-  const [inputPage, setInputPage] = useState(1);
-  const [view, setView] = useState('list'); // 'list' | 'log'
-  const [searchQuery, setSearchQuery] = useState('');
-  const router = useRouter();
-  
-
-  // --- 仅当原 POST /api/admin/${view} 不可用时，做兜底 ---
-  const getListdata = useCallback(async (page) => {
-    const pageZeroBased = page - 1;
-
-    // 1) 你原来的首选请求（保持不变）
-    const primaryUrl = `/api/admin/${view}`;
-    try {
-      const res = await fetch(primaryUrl, {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
-        },
-        body: JSON.stringify({ page: pageZeroBased, query: searchQuery })
-      });
-      const res_data = await res.json();
-
-      if (!res_data?.success) {
-        // 原接口有返回，但 success=false，按你原逻辑提示错误
-        toast.error(res_data?.message || '获取失败');
-      } else {
-        setListData(res_data.data);
-        const totalPages = Math.ceil(res_data.total / 10);
-        setSearchTotal(totalPages);
-        return; // 成功则直接返回，不再尝试兜底
-      }
-    } catch (err) {
-      // 进入兜底流程
-    }
-
-    // 2) 兜底：仅在 405/404/500 等失败时，尝试其它常见路径与 GET 方式
-    //    （不会影响你原本能用的情况）
-    try {
-      const candidates = [];
-
-      if (view === 'log') {
-        // 日志接口常见命名
-        candidates.push(
-          { url: '/api/admin/log',  method: 'POST' },
-          { url: '/api/admin/logs', method: 'POST' },
-          { url: '/api/enableauthapi/log',  method: 'POST' },
-          { url: '/api/enableauthapi/logs', method: 'POST' },
-          // GET 兜底
-          { url: `/api/admin/log?page=${pageZeroBased}&query=${encodeURIComponent(searchQuery)}`, method: 'GET' },
-          { url: `/api/admin/logs?page=${pageZeroBased}&query=${encodeURIComponent(searchQuery)}`, method: 'GET' },
-          { url: `/api/enableauthapi/log?page=${pageZeroBased}&query=${encodeURIComponent(searchQuery)}`, method: 'GET' },
-          { url: `/api/enableauthapi/logs?page=${pageZeroBased}&query=${encodeURIComponent(searchQuery)}`, method: 'GET' },
-        );
-      } else {
-        // 列表接口常见命名
-        candidates.push(
-          { url: '/api/admin/list', method: 'POST' },
-          { url: '/api/enableauthapi/list', method: 'POST' },
-          // GET 兜底
-          { url: `/api/admin/list?page=${pageZeroBased}&query=${encodeURIComponent(searchQuery)}`, method: 'GET' },
-          { url: `/api/enableauthapi/list?page=${pageZeroBased}&query=${encodeURIComponent(searchQuery)}`, method: 'GET' },
-        );
-      }
-
-      let okData = null;
-      for (const c of candidates) {
-        try {
-          const init = c.method === 'POST'
-            ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: pageZeroBased, query: searchQuery }) }
-            : { method: 'GET' };
-
-          okData = await tryFetchJSON(c.url, init);
-          break;
-        } catch (e) {
-          // 如果是未授权，直接报错，不再尝试
-          if (e?.status === 401 || e?.status === 403) {
-            throw e;
-          }
-          // 其它错误继续尝试下一个
-        }
-      }
-
-      if (!okData) throw new Error('没有可用接口');
-
-      // 兼容多返回结构：{success,data,total} | {list,total} | Array
-      if (okData?.success) {
-        setListData(okData.data || []);
-        const totalPages = Math.ceil((okData.total ?? 0) / 10);
-        setSearchTotal(totalPages || 1);
-      } else if (Array.isArray(okData?.list)) {
-        setListData(okData.list);
-        const totalPages = Math.ceil((okData.total ?? okData.list.length) / 10);
-        setSearchTotal(totalPages || 1);
-      } else if (Array.isArray(okData)) {
-        setListData(okData);
-        const totalPages = Math.ceil(okData.length / 10);
-        setSearchTotal(totalPages || 1);
-      } else {
-        throw new Error('未知返回结构');
-      }
-    } catch (error) {
-      toast.error(error.message || '获取失败');
-    }
-  }, [view, searchQuery]);
-
-  useEffect(() => {
-    getListdata(currentPage)
-  }, [currentPage, view, getListdata]);
-
-  // 分页控制
-  const handleNextPage = () => {
-    const nextPage = currentPage + 1;
-    if (nextPage > searchTotal) {
-      toast.error('当前已为最后一页！')
-    }
-    if (nextPage <= searchTotal) {
-      setCurrentPage(nextPage);
-      setInputPage(nextPage)
-    }
-  };
-
-  const handlePrevPage = () => {
-    const prevPage = currentPage - 1;
-    if (prevPage >= 1) {
-      setCurrentPage(prevPage);
-      setInputPage(prevPage)
-    }
-  };
-
-  const handleJumpPage = () => {
-    const page = parseInt(inputPage, 10);
-    if (!isNaN(page) && page >= 1 && page <= searchTotal) {
-      setCurrentPage(page);
-    } else {
-      toast.error('请输入有效的页码！');
-    }
-  };
-
-  const handleViewToggle = () => {
-    coconst newView = view === 'list' ? 'log' : 'list';
-  setView(newView);
-  if (newView === 'log') {
-    router.push('/admin/logs');
-  } else {
-    router.push('/admin');
-  }
-    setCurrentPage(1);
-  setInputPage(1);
-
-       
-  };
-
-  const handleSearch = (event) => {
-    event.preventDefault();
-    setCurrentPage(1);
-    setInputPage(1);
-    getListdata(1);
-  };
-
+// 标签页组件
+function Tab({ href, active, children }) {
   return (
-    <>
-      <div className="overflow-auto h-full flex w-full min-h-screen flex-col items-center justify-between">
-        {/* 轻量美化：顶栏加一点透明与投影（不影响功能） */}
-        <header className="fixed top-0 h-[56px] left-0 w-full border-b bg-white/85 backdrop-blur-sm flex z-50 justify-center items-center shadow-sm">
-          <div className="flex justify-between items-center w-full max-w-5xl px-4">
-            <button
-              className="text-white px-4 py-2 bg-blue-500 hover:bg-indigo-500 rounded transition"
-              onClick={handleViewToggle}
-            >
-              切换到 {view === 'list' ? '日志页' : '数据页'}
-    c
+    <Link
+      href={href}
+      prefetch={false}
+      className={
+        `px-3 h-9 inline-flex items-center rounded-xl text-sm border transition ` +
+        (active
+          ? `bg-indigo-600 text-white border-indigo-600 shadow`
+          : `bg-transparent border-neutral-300/60 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-200`)
+      }
+    >
+      {children}
+    </Link>
+  );
+}
+
+// 加载骨架屏
+function SkeletonCard({ isDark }) {
+  return (
+    <div className={`rounded-2xl border p-3 animate-pulse ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/90 border-neutral-200'}`}>
+      <div className={`w-full h-40 rounded-xl ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
+      <div className={`mt-3 h-4 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <div className={`h-9 flex-1 rounded-xl ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
+        <div className={`h-9 flex-1 rounded-xl ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
+      </div>
+    </div>
+  );
+}
+
+// 图片预览模态框
+function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
+  if (!isOpen || !item) return null;
   
-            </button>
-
-            <form onSubmit={handleSearch} className="hidden sm:flex items-center">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="border rounded-lg p-2 w-44 mr-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="搜索"
+  const isVideo = String(item.type || '').startsWith('video/');
+  
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div 
+        className={`max-w-5xl w-full rounded-2xl border shadow-2xl overflow-hidden ${
+          isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${
+          isDark ? 'border-neutral-800' : 'border-neutral-200'
+        }`}>
+          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>预览</h3>
+          <button
+            onClick={onClose}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
+              isDark ? 'hover:bg-neutral-800 text-neutral-400' : 'hover:bg-neutral-100 text-neutral-600'
+            }`}
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-6">
+          <div className="relative w-full aspect-video bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden mb-4">
+            {isVideo ? (
+              <video src={item.url} className="w-full h-full object-contain" controls />
+            ) : (
+              <Image 
+                src={item.url} 
+                alt={item.name || 'preview'} 
+                fill 
+                className="object-contain"
+                unoptimized
               />
-              <button
-                type="submit"
-                className="text-white px-4 py-2 bg-blue-500 hover:bg-indigo-500 rounded transition"
-              >
-                搜索
-              </button>
-            </form>
-
-            <div className="flex items-center">
-              <Link href="/" className="hidden sm:flex">
-                <button className="px-4 py-2 mx-2 bg-blue-500 hover:bg-indigo-500 text-white rounded transition">主页</button>
-              </Link>
-              <button
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="px-4 py-2 mx-2 bg-blue-500 hover:bg-indigo-500 text-white rounded transition"
-              >
-                登出
-              </button>
-            </div>
+            )}
           </div>
-        </header>
-
-        <main className="my-[72px] w-11/12 sm:w-11/12 md:w-10/12 lg:w-10/12 xl:w-4/6 2xl:w-full">
-          <Table data={listData} />
-        </main>
-
-        {/* 底部分页条：仅美化样式，不改逻辑 */}
-        <div className="fixed inset-x-0 bottom-0 h-[56px] w-full flex z-50 justify-center items-center bg-white/95 backdrop-blur-sm border-t">
-          <div className="pagination my-2 flex justify-center items-center">
-            <button
-              className="text-xs sm:text-sm bg-blue-500 hover:bg-indigo-500 text-white px-3 py-2 rounded mr-5 transition"
-              onClick={handlePrevPage}
-              disabled={currentPage === 1}
-            >
-              上一页
-            </button>
-            <span className="text-xs sm:text-sm">第 {`${currentPage}/${searchTotal || 1}`} 页</span>
-            <button
-              className="text-xs sm:text-sm bg-blue-500 hover:bg-indigo-500 text-white px-3 py-2 rounded ml-5 transition"
-              onClick={handleNextPage}
-            >
-              下一页
-            </button>
-            <div className="ml-5 flex items-center">
-              <input
-                type="number"
-                value={inputPage}
-                onChange={(e) => setInputPage(e.target.value)}
-                className="border rounded-lg p-2 w-20 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="页码"
-              />
-              <button
-                className="text-xs sm:text-sm bg-blue-500 hover:bg-indigo-500 text-white px-3 py-2 rounded ml-2 transition"
-                onClick={handleJumpPage}
-              >
-                跳转
-              </button>
+          <div className={`space-y-2 text-sm ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+            <div>
+              <span className="opacity-60">URL：</span>
+              <div className="mt-1 break-all font-mono text-xs bg-neutral-800/50 dark:bg-neutral-800/30 p-2 rounded">
+                {item.url}
+              </div>
             </div>
+            {item.rating !== undefined && (
+              <div>
+                <span className="opacity-60">评级：</span>
+                <span className="ml-2">{item.rating ?? '-'}</span>
+              </div>
+            )}
+            {item.total !== undefined && (
+              <div>
+                <span className="opacity-60">访问次数：</span>
+                <span className="ml-2">{item.total}</span>
+              </div>
+            )}
           </div>
         </div>
-
-        <ToastContainer />
       </div>
-    </>
-  )
+    </div>
+  );
+}
+
+export default function AdminPage() {
+  const { isDark } = useTheme();
+  const pathname = usePathname();
+
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [previewItem, setPreviewItem] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const pageSize = 20;
+
+  // 加载数据
+  const load = useCallback(async (pageNum = 0) => {
+    setLoading(true);
+    try {
+      // 使用POST接口支持分页和查询
+      const res = await fetch("/api/admin/list", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          page: pageNum, 
+          query: query.trim() || null 
+        })
+      });
+      
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        toast.error(`获取列表失败：${text?.slice(0, 60) || res.status}`);
+        return;
+      }
+      
+      // 处理不同的响应格式
+      const list = Array.isArray(data?.data) 
+        ? data.data 
+        : Array.isArray(data?.list) 
+          ? data.list 
+          : Array.isArray(data) 
+            ? data 
+            : [];
+      
+      setItems(list);
+      setTotal(data?.total ?? list.length);
+      setSelectedItems(new Set()); // 切换页面时清空选择
+    } catch (e) {
+      toast.error(e?.message || "加载失败");
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    load(page);
+  }, [load, page]);
+
+  // 筛选
+  const filtered = useMemo(() => {
+    if (!query.trim()) return items;
+    const q = query.toLowerCase();
+    return items.filter((x) => (x.name || x.url || "").toLowerCase().includes(q));
+  }, [items, query]);
+
+  // 复制链接
+  const copy = async (text) => {
+    try { 
+      await navigator.clipboard.writeText(text); 
+      toast.success("已复制链接"); 
+    } catch { 
+      toast.error("复制失败"); 
+    }
+  };
+
+  // 删除单个
+  const del = async (it) => {
+    if (!confirm(`确定要删除这张图片吗？\n${it.url}`)) return;
+    
+    try {
+      const url = it.url || it.id || it._id || it.key;
+      const res = await fetch("/api/admin/delete", { 
+        method: "DELETE",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: url })
+      });
+      
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.message || "删除失败");
+      
+      toast.success("已删除");
+      setItems((arr) => arr.filter((x) => (x.url || x.id || x._id || x.key) !== url));
+      setSelectedItems((set) => {
+        const newSet = new Set(set);
+        newSet.delete(url);
+        return newSet;
+      });
+    } catch (e) {
+      toast.error(e?.message || "删除失败");
+    }
+  };
+
+  // 批量删除
+  const batchDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.info("请先选择要删除的图片");
+      return;
+    }
+    
+    if (!confirm(`确定要删除选中的 ${selectedItems.size} 张图片吗？`)) return;
+    
+    const itemsToDelete = Array.from(selectedItems);
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const url of itemsToDelete) {
+      try {
+        const res = await fetch("/api/admin/delete", { 
+          method: "DELETE",
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: url })
+        });
+        const data = await res.json();
+        if (res.ok && data?.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      toast.success(`已删除 ${successCount} 张图片${failCount > 0 ? `，失败 ${failCount} 张` : ''}`);
+      load(page); // 重新加载当前页
+    } else {
+      toast.error("删除失败");
+    }
+  };
+
+  // 切换选择
+  const toggleSelect = (url) => {
+    setSelectedItems((set) => {
+      const newSet = new Set(set);
+      if (newSet.has(url)) {
+        newSet.delete(url);
+      } else {
+        newSet.add(url);
+      }
+      return newSet;
+    });
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedItems.size === filtered.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(filtered.map(it => it.url || it.id || it._id || it.key)));
+    }
+  };
+
+  // 预览
+  const handlePreview = (it) => {
+    setPreviewItem(it);
+    setIsPreviewOpen(true);
+  };
+
+  // 分页
+  const totalPages = Math.ceil(total / pageSize);
+  const paginatedItems = filtered.slice(page * pageSize, (page + 1) * pageSize);
+
+  return (
+    <main
+      className={`min-h-screen px-4 pb-16 ${isDark ? "bg-neutral-950 text-neutral-100" : "bg-neutral-50 text-neutral-900"}`}
+      style={{
+        backgroundImage: isDark
+          ? "radial-gradient(1000px 600px at 10% -10%, rgba(99,102,241,0.15), transparent), radial-gradient(800px 500px at 90% -10%, rgba(34,211,238,0.10), transparent)"
+          : "radial-gradient(1000px 600px at 10% -10%, rgba(99,102,241,0.08), transparent), radial-gradient(800px 500px at 90% -10%, rgba(14,165,233,0.08), transparent)",
+      }}
+    >
+      {/* 顶部工具条 */}
+      <div className={`sticky top-0 z-40 -mx-4 px-4 h-[64px] flex items-center justify-between border-b backdrop-blur ${isDark ? 'bg-neutral-950/70 border-neutral-900/70' : 'bg-white/70 border-neutral-200/80'}`}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tab href="/admin" active={pathname === "/admin"}>图库</Tab>
+          <Tab href="/admin/logs" active={pathname?.startsWith("/admin/log")}>日志</Tab>
+          <div className="ml-3 text-xs opacity-70">
+            共 {total || filtered.length} 条
+            {query && `（筛选后：${filtered.length} 条）`}
+            {selectedItems.size > 0 && ` | 已选 ${selectedItems.size} 条`}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedItems.size > 0 && (
+            <button
+              onClick={batchDelete}
+              className="h-9 px-3 rounded-xl text-sm text-white bg-rose-600 hover:bg-rose-500 transition"
+            >
+              批量删除 ({selectedItems.size})
+            </button>
+          )}
+          <div className={`flex items-center gap-2 rounded-xl border px-3 h-9 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+            <span className="text-xs opacity-60">🔍</span>
+            <input
+              className="bg-transparent outline-none text-sm w-48"
+              placeholder="搜索链接..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => load(page)} 
+            disabled={loading} 
+            className={`h-9 px-3 rounded-xl text-sm text-white transition ${loading ? 'bg-indigo-500/70 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+          >
+            {loading ? '刷新中…' : '🔄 刷新'}
+          </button>
+        </div>
+      </div>
+
+      {/* 列表 */}
+      {loading && paginatedItems.length === 0 ? (
+        // 骨架屏
+        <div className="mx-auto max-w-6xl mt-5 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonCard key={i} isDark={isDark} />
+          ))}
+        </div>
+      ) : paginatedItems.length > 0 ? (
+        <>
+          {/* 全选按钮 */}
+          <div className="mx-auto max-w-6xl mt-5 mb-2">
+            <button
+              onClick={toggleSelectAll}
+              className={`px-3 py-1 rounded-lg text-xs transition ${
+                selectedItems.size === filtered.length
+                  ? isDark ? 'bg-indigo-600 text-white' : 'bg-indigo-600 text-white'
+                  : isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
+              }`}
+            >
+              {selectedItems.size === filtered.length ? '取消全选' : '全选'}
+            </button>
+          </div>
+          
+          <div className="mx-auto max-w-6xl mt-2 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+            {paginatedItems.map((it, idx) => {
+              const itemUrl = it.url || it.id || it._id || it.key;
+              const isSelected = selectedItems.has(itemUrl);
+              const isVideo = String(it.type || '').startsWith('video/');
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`rounded-2xl border p-3 transition relative group ${
+                    isSelected 
+                      ? isDark ? 'bg-indigo-900/30 border-indigo-600' : 'bg-indigo-50 border-indigo-400'
+                      : isDark ? 'bg-neutral-900/70 border-neutral-800 hover:border-neutral-700' : 'bg-white/90 border-neutral-200 hover:border-neutral-300'
+                  }`}
+                >
+                  {/* 选择框 */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(itemUrl)}
+                      className="w-5 h-5 cursor-pointer"
+                    />
+                  </div>
+                  
+                  {/* 图片预览 */}
+                  <div 
+                    className="relative w-full h-40 overflow-hidden rounded-xl border border-black/10 bg-neutral-100 dark:bg-neutral-800 cursor-pointer"
+                    onClick={() => handlePreview(it)}
+                  >
+                    {isVideo ? (
+                      <video src={it.url} className="w-full h-full object-cover" />
+                    ) : (
+                      <Image 
+                        src={it.url} 
+                        alt={it.name || `item-${idx}`} 
+                        fill 
+                        className="object-cover transition group-hover:scale-105"
+                        unoptimized
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition"></div>
+                  </div>
+                  
+                  {/* URL显示 */}
+                  <div className="mt-3 text-xs break-all opacity-80 h-10 overflow-hidden line-clamp-2" title={it.url}>
+                    {it.url}
+                  </div>
+                  
+                  {/* 操作按钮 */}
+                  <div className="mt-3 flex items-center gap-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); copy(it.url); }} 
+                      className="flex-1 h-9 px-3 rounded-xl text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition"
+                    >
+                      复制
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); del(it); }} 
+                      className="flex-1 h-9 px-3 rounded-xl text-sm text-white bg-rose-600 hover:bg-rose-500 transition"
+                    >
+                      删除
+                    </button>
+                  </div>
+                  
+                  {/* 统计信息 */}
+                  {(it.total !== undefined || it.rating !== undefined) && (
+                    <div className="mt-2 flex items-center gap-2 text-xs opacity-60">
+                      {it.total !== undefined && <span>访问: {it.total}</span>}
+                      {it.rating !== undefined && <span>评级: {it.rating}</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className={`mx-auto max-w-6xl mt-12 text-center ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+          <div className="text-4xl mb-4">📷</div>
+          <div className="text-lg mb-2">{query ? '没有找到匹配的图片' : '暂无图片'}</div>
+          <div className="text-sm opacity-70">{query ? '试试其他关键词' : '上传一些图片开始使用吧'}</div>
+        </div>
+      )}
+
+      {/* 分页控件 */}
+      {totalPages > 1 && (
+        <div className={`mx-auto max-w-6xl mt-6 flex items-center justify-center gap-2 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+          <button
+            onClick={() => setPage(Math.max(0, page - 1))}
+            disabled={page === 0}
+            className={`px-4 py-2 rounded-xl text-sm transition ${
+              page === 0
+                ? 'opacity-50 cursor-not-allowed'
+                : isDark
+                  ? 'bg-neutral-800 hover:bg-neutral-700'
+                  : 'bg-white hover:bg-neutral-100'
+            }`}
+          >
+            上一页
+          </button>
+          <div className="text-sm">
+            第 {page + 1} / {totalPages} 页
+          </div>
+          <button
+            onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+            disabled={page >= totalPages - 1}
+            className={`px-4 py-2 rounded-xl text-sm transition ${
+              page >= totalPages - 1
+                ? 'opacity-50 cursor-not-allowed'
+                : isDark
+                  ? 'bg-neutral-800 hover:bg-neutral-700'
+                  : 'bg-white hover:bg-neutral-100'
+            }`}
+          >
+            下一页
+          </button>
+        </div>
+      )}
+
+      {/* 图片预览模态框 */}
+      <ImagePreviewModal
+        item={previewItem}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        isDark={isDark}
+      />
+
+      <ToastContainer position="top-right" autoClose={2200} theme={isDark ? 'dark' : 'light'} />
+    </main>
+  );
 }
