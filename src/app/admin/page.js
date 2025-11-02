@@ -1,681 +1,269 @@
 "use client";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faArrowRightArrowLeft,
+  faChartLine,
+  faHouse,
+  faMagnifyingGlass,
+  faRightFromBracket,
+} from "@fortawesome/free-solid-svg-icons";
+import Table from "@/components/Table";
+import LoadingOverlay from "@/components/LoadingOverlay";
 
-// 主题Hook
-function useTheme() {
-  const [isDark, setIsDark] = useState(true);
-  useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    if (saved) setIsDark(saved === "dark");
-    else if (typeof window !== "undefined" && window.matchMedia) {
-      setIsDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
-    }
-  }, []);
-  return { isDark };
-}
+const REQUEST_HEADERS = {
+  "Content-Type": "application/json",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+};
 
-// 标签页组件
-function Tab({ href, active, children }) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={
-        `px-3 h-9 inline-flex items-center rounded-xl text-sm border transition ` +
-        (active
-          ? `bg-indigo-600 text-white border-indigo-600 shadow`
-          : `bg-transparent border-neutral-300/60 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-200`)
-      }
-    >
-      {children}
-    </Link>
-  );
-}
-
-// 加载骨架屏
-function SkeletonCard({ isDark }) {
-  return (
-    <div className={`rounded-2xl border p-3 animate-pulse ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/90 border-neutral-200'}`}>
-      <div className={`w-full h-40 rounded-xl ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
-      <div className={`mt-3 h-4 rounded ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <div className={`h-9 flex-1 rounded-xl ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
-        <div className={`h-9 flex-1 rounded-xl ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`}></div>
-      </div>
-    </div>
-  );
-}
-
-// 转换图片URL为可访问的完整路径
-function getImageUrl(url) {
-  if (!url) return '';
-  
-  // 如果已经是完整的URL（http/https开头），直接返回
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  
-  // 如果是相对路径，需要添加 /api 前缀
-  if (url.startsWith('/rfile/') || url.startsWith('/file/') || url.startsWith('/cfile/')) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}/api${url}`;
-  }
-  
-  // 如果已经包含 /api，直接返回（添加 origin 如果有需要）
-  if (url.startsWith('/api/')) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}${url}`;
-  }
-  
-  // 其他情况，尝试添加 origin
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  return url.startsWith('/') ? `${origin}${url}` : url;
-}
-
-// 获取文件类型
-function getFileType(url, type) {
-  if (!url && !type) return 'unknown';
-  const urlLower = (url || '').toLowerCase();
-  const typeLower = String(type || '').toLowerCase();
-  
-  if (typeLower.startsWith('video/') || urlLower.match(/\.(mp4|webm|ogg|avi|mov)$/)) return 'video';
-  if (typeLower.startsWith('image/') || urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/)) return 'image';
-  if (urlLower.match(/\.(html|htm)$/)) return 'html';
-  if (urlLower.match(/\.(pdf)$/)) return 'pdf';
-  if (urlLower.match(/\.(txt|md)$/)) return 'text';
-  if (urlLower.match(/\.(js|jsx|ts|tsx)$/)) return 'code';
-  if (urlLower.match(/\.(css)$/)) return 'css';
-  return 'unknown';
-}
-
-// 文件预览模态框
-function ImagePreviewModal({ item, isOpen, onClose, isDark }) {
-  if (!isOpen || !item) return null;
-  
-  const fileType = getFileType(item.url, item.type);
-  const fileUrl = getImageUrl(item.url);
-  
-  const renderPreview = () => {
-    switch (fileType) {
-      case 'video':
-        return (
-          <video src={fileUrl} className="w-full h-auto max-h-[70vh] rounded-lg" controls />
-        );
-      case 'html':
-        return (
-          <iframe 
-            src={fileUrl} 
-            className="w-full h-[70vh] rounded-lg border"
-            title="HTML Preview"
-            sandbox="allow-same-origin allow-scripts"
-          />
-        );
-      case 'pdf':
-        return (
-          <iframe 
-            src={fileUrl} 
-            className="w-full h-[70vh] rounded-lg border"
-            title="PDF Preview"
-          />
-        );
-      case 'text':
-      case 'code':
-      case 'css':
-        return (
-          <div className={`w-full h-[70vh] rounded-lg border overflow-auto p-4 ${
-            isDark ? 'bg-neutral-800 text-neutral-100' : 'bg-white text-neutral-900'
-          }`}>
-            <pre className="whitespace-pre-wrap font-mono text-sm">
-              {fileUrl ? '加载中...' : '无法预览此文件类型'}
-            </pre>
-          </div>
-        );
-      case 'unknown':
-        return (
-          <div className={`w-full h-[50vh] rounded-lg border flex items-center justify-center ${
-            isDark ? 'bg-neutral-800' : 'bg-neutral-100'
-          }`}>
-            <div className="text-center">
-              <div className="text-4xl mb-4">📄</div>
-              <div className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                不支持预览此文件类型
-              </div>
-              <a 
-                href={fileUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={`mt-4 inline-block px-4 py-2 rounded-lg text-sm ${
-                  isDark 
-                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white' 
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                }`}
-              >
-                在新标签页打开
-              </a>
-            </div>
-          </div>
-        );
-      default: // image
-        return (
-          <div className="relative w-full aspect-video bg-neutral-100 dark:bg-neutral-800 rounded-lg overflow-hidden">
-            <Image 
-              src={fileUrl} 
-              alt={item.name || 'preview'} 
-              fill 
-              className="object-contain"
-              unoptimized
-            />
-          </div>
-        );
-    }
-  };
-  
-  return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div 
-        className={`max-w-5xl w-full rounded-2xl border shadow-2xl overflow-hidden ${
-          isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${
-          isDark ? 'border-neutral-800' : 'border-neutral-200'
-        }`}>
-          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            预览 - {fileType === 'html' ? 'HTML' : fileType === 'pdf' ? 'PDF' : fileType === 'video' ? '视频' : fileType === 'image' ? '图片' : '文件'}
-          </h3>
-          <button
-            onClick={onClose}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
-              isDark ? 'hover:bg-neutral-800 text-neutral-400' : 'hover:bg-neutral-100 text-neutral-600'
-            }`}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="p-6">
-          <div className="mb-4">
-            {renderPreview()}
-          </div>
-          <div className={`space-y-2 text-sm ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-            <div>
-              <span className="opacity-60">URL：</span>
-              <div className="mt-1 break-all font-mono text-xs bg-neutral-800/50 dark:bg-neutral-800/30 p-2 rounded">
-                {item.url}
-              </div>
-            </div>
-            {item.rating !== undefined && (
-              <div>
-                <span className="opacity-60">评级：</span>
-                <span className="ml-2">{item.rating ?? '-'}</span>
-              </div>
-            )}
-            {item.total !== undefined && (
-              <div>
-                <span className="opacity-60">访问次数：</span>
-                <span className="ml-2">{item.total}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function AdminPage() {
-  const { isDark } = useTheme();
-  const pathname = usePathname();
-
-  const [items, setItems] = useState([]);
+export default function Admin() {
+  const [listData, setListData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [jumpPage, setJumpPage] = useState("1");
   const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [selectedItems, setSelectedItems] = useState(new Set());
-  const [previewItem, setPreviewItem] = useState(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const pageSize = 20;
 
-  // 加载数据
-  const load = useCallback(async (pageNum = 0) => {
+  const fetchList = useCallback(async (page, query) => {
     setLoading(true);
     try {
-      // 使用POST接口支持分页和查询
-      const res = await fetch("/api/admin/list", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          page: pageNum, 
-          query: query.trim() || null 
-        })
+      const response = await fetch("/api/admin/list", {
+        method: "POST",
+        headers: REQUEST_HEADERS,
+        body: JSON.stringify({
+          page: Math.max(page - 1, 0),
+          query,
+        }),
       });
-      
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        toast.error(`获取列表失败：${text?.slice(0, 60) || res.status}`);
-        return;
+
+      if (!response.ok) {
+        throw new Error("服务异常，请稍后再试");
       }
-      
-      // 处理不同的响应格式
-      const list = Array.isArray(data?.data) 
-        ? data.data 
-        : Array.isArray(data?.list) 
-          ? data.list 
-          : Array.isArray(data) 
-            ? data 
-            : [];
-      
-      setItems(list);
-      setTotal(data?.total ?? list.length);
-      setSelectedItems(new Set()); // 切换页面时清空选择
-    } catch (e) {
-      toast.error(e?.message || "加载失败");
-      setItems([]);
+
+      const data = await response.json();
+
+      if (!data?.success) {
+        throw new Error(data?.message || "获取数据失败");
+      }
+
+      setListData(Array.isArray(data.data) ? data.data : []);
+
+      const total = Number(data.total) || 0;
+      setTotalItems(total);
+      const computedPages = Math.max(Math.ceil(total / 10), 1);
+      setTotalPages(computedPages);
+    } catch (error) {
+      toast.error(error.message || "获取数据失败");
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, []);
 
   useEffect(() => {
-    load(page);
-  }, [load, page]);
+    fetchList(currentPage, searchQuery);
+  }, [currentPage, searchQuery, fetchList]);
 
-  // 筛选
-  const filtered = useMemo(() => {
-    if (!query.trim()) return items;
-    const q = query.toLowerCase();
-    return items.filter((x) => (x.name || x.url || "").toLowerCase().includes(q));
-  }, [items, query]);
+  useEffect(() => {
+    setJumpPage(String(currentPage));
+  }, [currentPage]);
 
-  // 复制链接
-  const copy = async (url) => {
-    try {
-      // 将相对路径转换为完整的URL（包含域名）
-      const fullUrl = getImageUrl(url);
-      await navigator.clipboard.writeText(fullUrl); 
-      toast.success("已复制链接"); 
-    } catch { 
-      toast.error("复制失败"); 
-    }
+  const handlePrevPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
   };
 
-  // 删除单个
-  const del = async (it) => {
-    if (!confirm(`确定要删除这张图片吗？\n${it.url}`)) return;
-    
-    try {
-      const url = it.url || it.id || it._id || it.key;
-      const res = await fetch("/api/admin/delete", { 
-        method: "DELETE",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: url })
-      });
-      
-      const data = await res.json();
-      if (!res.ok || !data?.success) throw new Error(data?.message || "删除失败");
-      
-      toast.success("已删除");
-      setItems((arr) => arr.filter((x) => (x.url || x.id || x._id || x.key) !== url));
-      setSelectedItems((set) => {
-        const newSet = new Set(set);
-        newSet.delete(url);
-        return newSet;
-      });
-    } catch (e) {
-      toast.error(e?.message || "删除失败");
-    }
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   };
 
-  // 批量删除
-  const batchDelete = async () => {
-    if (selectedItems.size === 0) {
-      toast.info("请先选择要删除的图片");
+  const handleJumpPage = () => {
+    const parsedPage = Number(jumpPage);
+    if (!Number.isInteger(parsedPage) || parsedPage < 1 || parsedPage > totalPages) {
+      toast.error("请输入有效的页码");
       return;
     }
-    
-    if (!confirm(`确定要删除选中的 ${selectedItems.size} 张图片吗？`)) return;
-    
-    const itemsToDelete = Array.from(selectedItems);
-    let successCount = 0;
-    let failCount = 0;
-    
-    for (const url of itemsToDelete) {
-      try {
-        const res = await fetch("/api/admin/delete", { 
-          method: "DELETE",
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: url })
-        });
-        const data = await res.json();
-        if (res.ok && data?.success) {
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch {
-        failCount++;
-      }
-    }
-    
-    if (successCount > 0) {
-      toast.success(`已删除 ${successCount} 张图片${failCount > 0 ? `，失败 ${failCount} 张` : ''}`);
-      load(page); // 重新加载当前页
-    } else {
-      toast.error("删除失败");
-    }
+    setCurrentPage(parsedPage);
   };
 
-  // 切换选择
-  const toggleSelect = (url) => {
-    setSelectedItems((set) => {
-      const newSet = new Set(set);
-      if (newSet.has(url)) {
-        newSet.delete(url);
-      } else {
-        newSet.add(url);
-      }
-      return newSet;
-    });
+  const handleSearch = (event) => {
+    event.preventDefault();
+    setCurrentPage(1);
+    setSearchQuery(searchInput.trim());
   };
 
-  // 全选/取消全选
-  const toggleSelectAll = () => {
-    if (selectedItems.size === filtered.length) {
-      setSelectedItems(new Set());
-    } else {
-      setSelectedItems(new Set(filtered.map(it => it.url || it.id || it._id || it.key)));
-    }
+  const handleResetSearch = () => {
+    setSearchInput("");
+    setSearchQuery("");
+    setCurrentPage(1);
   };
 
-  // 预览
-  const handlePreview = (it) => {
-    setPreviewItem(it);
-    setIsPreviewOpen(true);
-  };
-
-  // 分页
-  const totalPages = Math.ceil(total / pageSize);
-  const paginatedItems = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const stats = useMemo(
+    () => [
+      {
+        label: "素材总量",
+        value: totalItems.toLocaleString("zh-CN"),
+        description: "包含图片、视频与其他文件",
+      },
+      {
+        label: "当前页码",
+        value: `${currentPage}/${totalPages}`,
+        description: "每页显示 10 条记录",
+      },
+      {
+        label: "搜索关键词",
+        value: searchQuery ? searchQuery : "未筛选",
+        description: searchQuery ? "当前筛选结果" : "显示全部数据",
+      },
+    ],
+    [currentPage, totalItems, totalPages, searchQuery],
+  );
 
   return (
-    <main
-      className={`min-h-screen px-4 pb-16 ${isDark ? "bg-neutral-950 text-neutral-100" : "bg-neutral-50 text-neutral-900"}`}
-      style={{
-        backgroundImage: isDark
-          ? "radial-gradient(1000px 600px at 10% -10%, rgba(99,102,241,0.15), transparent), radial-gradient(800px 500px at 90% -10%, rgba(34,211,238,0.10), transparent)"
-          : "radial-gradient(1000px 600px at 10% -10%, rgba(99,102,241,0.08), transparent), radial-gradient(800px 500px at 90% -10%, rgba(14,165,233,0.08), transparent)",
-      }}
-    >
-      {/* 顶部工具条 */}
-      <div className={`sticky top-0 z-40 -mx-4 px-4 h-[64px] flex items-center justify-between border-b backdrop-blur ${isDark ? 'bg-neutral-950/70 border-neutral-900/70' : 'bg-white/70 border-neutral-200/80'}`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link 
-            href="/" 
-            className={`px-3 h-9 inline-flex items-center rounded-xl text-sm border transition ${
-              isDark 
-                ? 'bg-transparent border-neutral-800 hover:bg-neutral-900 text-neutral-300' 
-                : 'bg-transparent border-neutral-300 hover:bg-neutral-100 text-neutral-700'
-            }`}
-          >
-            🏠 首页
-          </Link>
-          <Tab href="/admin" active={pathname === "/admin"}>图库</Tab>
-          <Tab href="/admin/logs" active={pathname?.startsWith("/admin/log")}>日志</Tab>
-          <div className="ml-3 text-xs opacity-70">
-            共 {total || filtered.length} 条
-            {query && `（筛选后：${filtered.length} 条）`}
-            {selectedItems.size > 0 && ` | 已选 ${selectedItems.size} 条`}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {selectedItems.size > 0 && (
-            <button
-              onClick={batchDelete}
-              className="h-9 px-3 rounded-xl text-sm text-white bg-rose-600 hover:bg-rose-500 transition"
-            >
-              批量删除 ({selectedItems.size})
-            </button>
-          )}
-          <div className={`flex items-center gap-2 rounded-xl border px-3 h-9 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-            <span className="text-xs opacity-60">🔍</span>
-            <input
-              className="bg-transparent outline-none text-sm w-48"
-              placeholder="搜索链接..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <button 
-            onClick={() => load(page)} 
-            disabled={loading} 
-            className={`h-9 px-3 rounded-xl text-sm text-white transition ${loading ? 'bg-indigo-500/70 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'}`}
-          >
-            {loading ? '刷新中…' : '🔄 刷新'}
-          </button>
-        </div>
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-160px] h-[360px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/20 blur-[160px]" />
+        <div className="absolute bottom-[-180px] right-[-120px] h-[420px] w-[420px] rounded-full bg-blue-600/25 blur-[200px]" />
+        <div className="absolute bottom-20 left-[-140px] h-[260px] w-[260px] rounded-full bg-indigo-500/25 blur-[180px]" />
       </div>
 
-      {/* 列表 */}
-      {loading && paginatedItems.length === 0 ? (
-        // 骨架屏
-        <div className="mx-auto max-w-6xl mt-5 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <SkeletonCard key={i} isDark={isDark} />
-          ))}
-        </div>
-      ) : paginatedItems.length > 0 ? (
-        <>
-          {/* 全选按钮 */}
-          <div className="mx-auto max-w-6xl mt-5 mb-2">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-10 px-4 py-12">
+        <header className="flex flex-col gap-6 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30">
+              <FontAwesomeIcon icon={faChartLine} className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-blue-300">Admin Console</p>
+              <h1 className="mt-1 text-2xl font-semibold">素材管理后台</h1>
+              <p className="mt-1 text-sm text-slate-300">
+                快速检索、审阅与维护上传的文件，保持平台高效整洁。
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/" className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-blue-400/60">
+              <FontAwesomeIcon icon={faHouse} className="mr-2 h-4 w-4" />
+              返回首页
+            </Link>
             <button
-              onClick={toggleSelectAll}
-              className={`px-3 py-1 rounded-lg text-xs transition ${
-                selectedItems.size === filtered.length
-                  ? isDark ? 'bg-indigo-600 text-white' : 'bg-indigo-600 text-white'
-                  : isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
-              }`}
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-blue-500/30 transition hover:scale-[1.02]"
             >
-              {selectedItems.size === filtered.length ? '取消全选' : '全选'}
+              <FontAwesomeIcon icon={faRightFromBracket} className="mr-2 h-4 w-4" />
+              退出登录
             </button>
           </div>
-          
-          <div className="mx-auto max-w-6xl mt-2 grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-            {paginatedItems.map((it, idx) => {
-              const itemUrl = it.url || it.id || it._id || it.key;
-              const isSelected = selectedItems.has(itemUrl);
-              const isVideo = String(it.type || '').startsWith('video/');
-              
-              return (
-                <div 
-                  key={idx} 
-                  className={`rounded-2xl border p-3 transition relative group ${
-                    isSelected 
-                      ? isDark ? 'bg-indigo-900/30 border-indigo-600' : 'bg-indigo-50 border-indigo-400'
-                      : isDark ? 'bg-neutral-900/70 border-neutral-800 hover:border-neutral-700' : 'bg-white/90 border-neutral-200 hover:border-neutral-300'
-                  }`}
+        </header>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          {stats.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl shadow-[0_25px_80px_-50px_rgba(59,130,246,0.4)]"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-300">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-300">{item.description}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="relative flex-1 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-2xl shadow-[0_35px_120px_-60px_rgba(14,116,244,0.45)]">
+          <LoadingOverlay loading={loading} />
+          <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <form onSubmit={handleSearch} className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="relative flex-1">
+                <FontAwesomeIcon
+                  icon={faMagnifyingGlass}
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="输入文件名或关键词"
+                  className="h-12 w-full rounded-2xl border border-white/10 bg-white/10 pl-10 pr-4 text-sm text-slate-100 placeholder:text-slate-400 transition focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                />
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-[1.02]"
                 >
-                  {/* 选择框 */}
-                  <div className="absolute top-2 right-2 z-10">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelect(itemUrl)}
-                      className="w-5 h-5 cursor-pointer"
-                    />
-                  </div>
-                  
-                  {/* 文件预览 */}
-                  <div 
-                    className="relative w-full h-40 overflow-hidden rounded-xl border border-black/10 bg-neutral-100 dark:bg-neutral-800 cursor-pointer flex items-center justify-center"
-                    onClick={() => handlePreview(it)}
-                  >
-                    {(() => {
-                      const fileType = getFileType(it.url, it.type);
-                      switch (fileType) {
-                        case 'video':
-                          return (
-                            <>
-                              <video src={getImageUrl(it.url)} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition"></div>
-                            </>
-                          );
-                        case 'image':
-                          try {
-                            return (
-                              <>
-                                <Image 
-                                  src={getImageUrl(it.url)} 
-                                  alt={it.name || `item-${idx}`} 
-                                  fill 
-                                  className="object-cover transition group-hover:scale-105"
-                                  unoptimized
-                                  onError={(e) => {
-                                    // 如果图片加载失败，显示文件类型图标
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition"></div>
-                              </>
-                            );
-                          } catch {
-                            return (
-                              <div className="text-center">
-                                <div className="text-4xl mb-2">🖼️</div>
-                                <div className="text-xs opacity-70">图片</div>
-                              </div>
-                            );
-                          }
-                        case 'html':
-                          return (
-                            <div className="text-center">
-                              <div className="text-4xl mb-2">🌐</div>
-                              <div className="text-xs opacity-70">HTML</div>
-                            </div>
-                          );
-                        case 'pdf':
-                          return (
-                            <div className="text-center">
-                              <div className="text-4xl mb-2">📄</div>
-                              <div className="text-xs opacity-70">PDF</div>
-                            </div>
-                          );
-                        case 'text':
-                        case 'code':
-                        case 'css':
-                          return (
-                            <div className="text-center">
-                              <div className="text-4xl mb-2">📝</div>
-                              <div className="text-xs opacity-70">文本/代码</div>
-                            </div>
-                          );
-                        default:
-                          return (
-                            <div className="text-center">
-                              <div className="text-4xl mb-2">📎</div>
-                              <div className="text-xs opacity-70">文件</div>
-                            </div>
-                          );
-                      }
-                    })()}
-                  </div>
-                  
-                  {/* URL显示 */}
-                  <div className="mt-3 text-xs break-all opacity-80 h-10 overflow-hidden line-clamp-2" title={it.url}>
-                    {it.url}
-                  </div>
-                  
-                  {/* 操作按钮 */}
-                  <div className="mt-3 flex items-center gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); copy(it.url); }} 
-                      className="flex-1 h-9 px-3 rounded-xl text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition"
-                    >
-                      复制
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); del(it); }} 
-                      className="flex-1 h-9 px-3 rounded-xl text-sm text-white bg-rose-600 hover:bg-rose-500 transition"
-                    >
-                      删除
-                    </button>
-                  </div>
-                  
-                  {/* 统计信息 */}
-                  {(it.total !== undefined || it.rating !== undefined) && (
-                    <div className="mt-2 flex items-center gap-2 text-xs opacity-60">
-                      {it.total !== undefined && <span>访问: {it.total}</span>}
-                      {it.rating !== undefined && <span>评级: {it.rating}</span>}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
+                  搜索
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetSearch}
+                  className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-blue-400/60"
+                >
+                  <FontAwesomeIcon icon={faArrowRightArrowLeft} className="h-4 w-4" />
+                  清空筛选
+                </button>
+              </div>
+            </form>
           </div>
-        </>
-      ) : (
-        <div className={`mx-auto max-w-6xl mt-12 text-center ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-          <div className="text-4xl mb-4">📷</div>
-          <div className="text-lg mb-2">{query ? '没有找到匹配的图片' : '暂无图片'}</div>
-          <div className="text-sm opacity-70">{query ? '试试其他关键词' : '上传一些图片开始使用吧'}</div>
-        </div>
-      )}
 
-      {/* 分页控件 */}
-      {totalPages > 1 && (
-        <div className={`mx-auto max-w-6xl mt-6 flex items-center justify-center gap-2 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-          <button
-            onClick={() => setPage(Math.max(0, page - 1))}
-            disabled={page === 0}
-            className={`px-4 py-2 rounded-xl text-sm transition ${
-              page === 0
-                ? 'opacity-50 cursor-not-allowed'
-                : isDark
-                  ? 'bg-neutral-800 hover:bg-neutral-700'
-                  : 'bg-white hover:bg-neutral-100'
-            }`}
-          >
-            上一页
-          </button>
-          <div className="text-sm">
-            第 {page + 1} / {totalPages} 页
+          <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+            <Table data={listData} />
           </div>
-          <button
-            onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-            disabled={page >= totalPages - 1}
-            className={`px-4 py-2 rounded-xl text-sm transition ${
-              page >= totalPages - 1
-                ? 'opacity-50 cursor-not-allowed'
-                : isDark
-                  ? 'bg-neutral-800 hover:bg-neutral-700'
-                  : 'bg-white hover:bg-neutral-100'
-            }`}
-          >
-            下一页
-          </button>
-        </div>
-      )}
 
-      {/* 图片预览模态框 */}
-      <ImagePreviewModal
-        item={previewItem}
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        isDark={isDark}
-      />
+          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-blue-500/20 px-4 py-1 text-xs font-medium text-blue-200">
+                {totalItems} 条记录
+              </span>
+              <span className="text-xs text-slate-300">第 {currentPage} / {totalPages} 页</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handlePrevPage}
+                className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs text-slate-100 transition hover:border-blue-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={currentPage === 1}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                onClick={handleNextPage}
+                className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs text-slate-100 transition hover:border-blue-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={currentPage === totalPages}
+              >
+                下一页
+              </button>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                <span className="text-xs text-slate-300">跳转到</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={jumpPage}
+                  onChange={(event) => setJumpPage(event.target.value)}
+                  className="h-8 w-16 rounded-xl border border-white/10 bg-slate-900/60 px-2 text-center text-xs text-slate-100 focus:border-blue-400/60 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleJumpPage}
+                  className="rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:scale-[1.02]"
+                >
+                  GO
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <ToastContainer position="top-right" autoClose={2200} theme={isDark ? 'dark' : 'light'} />
+        <ToastContainer position="bottom-right" theme="dark" />
+      </div>
     </main>
   );
 }

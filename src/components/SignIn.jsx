@@ -1,219 +1,182 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
-import { toast } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faImages, faMoon, faSun } from "@fortawesome/free-solid-svg-icons";
 
-/**
- * SignIn — 炫酷美化版（不改变登录逻辑）
- * 行为：
- *  1) 若传入 onSubmit，则优先调用；若返回 false，再走步骤 2/3
- *  2) POST /api/enableauthapi/login
- *  3) 回退 next-auth 的 credentials
- * 成功后跳转到 afterPath（默认 "/"）
- *
- * UI：
- *  - 渐变描边卡片 + 玻璃拟态 + 柔和光晕
- *  - 输入框聚焦 ring、按钮渐变
- *  - 显示/隐藏密码（纯 SVG，无外部图标依赖）
- *  - 自动适配深/浅色（读取 localStorage.theme 或系统偏好）
- */
+const fieldBaseClass =
+  "w-full rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition";
 
-function useThemeMode() {
-  const [isDark, setIsDark] = useState(true);
-  useEffect(() => {
-    const saved =
-      typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    if (saved) setIsDark(saved === "dark");
-    else if (typeof window !== "undefined" && window.matchMedia) {
-      setIsDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
-    }
-  }, []);
-  return isDark;
-}
-
-export default function SignIn({
-  onSubmit,            // (可选) 自定义登录：({username,password}) => Promise<boolean|void>
-  onSuccess,           // (可选) 登录成功回调
-  afterPath = "/",     // 登录成功后跳转
-  title = "登录",       // 标题
-}) {
-  const isDark = useThemeMode();
+export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState("light");
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = async (e) => {
-    e?.preventDefault?.();
-    if (!username || !password) {
-      try { toast.error("请输入账号与密码"); } catch {}
-      return;
-    }
-    setLoading(true);
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setTheme(hour >= 18 || hour < 7 ? "dark" : "light");
+  }, []);
+
+  const isDark = theme === "dark";
+
+  const backgroundClass = useMemo(
+    () =>
+      isDark
+        ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100"
+        : "bg-gradient-to-br from-sky-100 via-white to-blue-50 text-slate-900",
+    [isDark],
+  );
+
+  const cardClass = useMemo(
+    () =>
+      isDark
+        ? "border-white/10 bg-white/5 text-slate-100 shadow-[0_25px_80px_-40px_rgba(14,116,244,0.6)]"
+        : "border-white/70 bg-white/90 text-slate-900 shadow-[0_25px_80px_-50px_rgba(14,116,244,0.35)]",
+    [isDark],
+  );
+
+  const inputClass = useMemo(
+    () =>
+      `${fieldBaseClass} ${
+        isDark
+          ? "border-white/10 bg-white/10 text-slate-100 placeholder:text-slate-400 focus:ring-blue-400/80 focus:ring-offset-slate-900"
+          : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:ring-blue-400/80 focus:ring-offset-white"
+      }`,
+    [isDark],
+  );
+
+  const buttonClass = useMemo(
+    () =>
+      `flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+        submitting ? "opacity-70" : ""
+      }`,
+    [submitting],
+  );
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+
     try {
-      // 1) 自定义
-      if (typeof onSubmit === "function") {
-        const ok = await onSubmit({ username, password });
-        if (ok !== false) {
-          try { toast.success("登录成功"); } catch {}
-          onSuccess?.();
-          if (afterPath) window.location.href = afterPath;
-          return;
-        }
-      }
-
-      // 2) 你的接口
-      try {
-        const res = await fetch("/api/enableauthapi/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password }),
-        });
-        if (res.ok) {
-          try { toast.success("登录成功"); } catch {}
-          onSuccess?.();
-          if (afterPath) window.location.href = afterPath;
-          return;
-        }
-      } catch (_) {
-        // 忽略网络/404，继续回退
-      }
-
-      // 3) 回退 next-auth
-      const r = await signIn("credentials", {
+      const result = await signIn("credentials", {
         redirect: false,
         username,
         password,
-        callbackUrl: afterPath,
       });
-      if (r?.ok) {
-        try { toast.success("登录成功"); } catch {}
-        onSuccess?.();
-        if (afterPath) window.location.href = afterPath;
+
+      if (result?.error) {
+        toast.error("用户名或密码错误，请确认后再试");
       } else {
-        try { toast.error(r?.error || "登录失败"); } catch {}
+        toast.success("登录成功，正在跳转...");
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
       }
-    } catch (err) {
-      try { toast.error("网络错误"); } catch {}
+    } catch (error) {
+      toast.error("登录出现异常，请稍后再试");
+      console.error("Error during sign in:", error);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="w-full flex items-center justify-center">
-      {/* 背景柔光（不占交互） */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-      >
-        <div className="absolute -top-20 -left-24 w-72 h-72 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-cyan-400/20 blur-3xl" />
+    <div
+      className={`relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12 ${backgroundClass}`}
+    >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-120px] h-72 w-72 -translate-x-1/2 rounded-full bg-blue-400/40 blur-[150px]" />
+        <div className="absolute bottom-[-140px] right-[-80px] h-80 w-80 rounded-full bg-indigo-500/40 blur-[160px]" />
+        <div className="absolute bottom-0 left-[-120px] h-64 w-64 rounded-full bg-cyan-400/35 blur-[160px]" />
       </div>
 
-      {/* 渐变描边外框 */}
-      <div className="w-full max-w-md p-[1px] rounded-3xl bg-gradient-to-br from-indigo-500 via-sky-400 to-fuchsia-500 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.5)]">
-        {/* 玻璃拟态卡片 */}
-        <div
-          className={
-            "rounded-3xl p-6 backdrop-blur " +
-            (isDark
-              ? "bg-neutral-900/70 text-neutral-100"
-              : "bg-white/90 text-neutral-900")
-          }
+      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center gap-10 lg:flex-row">
+        <aside
+          className={`flex w-full max-w-md flex-col gap-6 rounded-3xl border p-8 backdrop-blur-xl ${cardClass}`}
         >
-          {/* 顶部品牌行 */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-indigo-500 to-cyan-400 shadow-inner" />
-            <h1 className="text-lg font-semibold tracking-wide">{title}</h1>
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/40">
+              <FontAwesomeIcon icon={faImages} className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-blue-300">
+                Telegraph Image
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold">登录你的账号</h1>
+            </div>
           </div>
+          <p className={`text-sm leading-6 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+            使用管理账号登录以维护上传空间。支持明暗双主题，夜间自动护眼，也可手动切换。
+          </p>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition ${
+              isDark
+                ? "border-white/20 bg-white/10 text-slate-100 hover:border-blue-400/60"
+                : "border-slate-200 bg-white text-slate-700 shadow-sm hover:border-blue-400/60"
+            }`}
+          >
+            <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
+            切换为{isDark ? "浅色" : "暗色"}模式
+          </button>
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-blue-300/40 to-transparent" />
+          <ul className={`space-y-3 text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+            <li>· 支持多角色权限管理</li>
+            <li>· 登录后可访问后台或上传首页</li>
+            <li>· 安全传输，自动清理敏感信息</li>
+          </ul>
+        </aside>
 
-          {/* 表单 */}
-          <form onSubmit={submit} className="space-y-3">
-            <div>
-              <label className="block text-sm mb-1 opacity-80">账号</label>
-              <div
-                className={
-                  "flex items-center rounded-xl border transition " +
-                  (isDark
-                    ? "bg-neutral-900 border-neutral-800 focus-within:ring-2 focus-within:ring-indigo-500/50"
-                    : "bg-white border-neutral-200 focus-within:ring-2 focus-within:ring-indigo-500/50")
-                }
-              >
-                <input
-                  className={
-                    "w-full px-3 py-2 rounded-xl bg-transparent outline-none text-sm"
-                  }
-                  placeholder="用户名"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
-                />
-              </div>
+        <section
+          className={`relative w-full max-w-md rounded-3xl border p-8 backdrop-blur-xl ${cardClass}`}
+        >
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="username">
+                用户名
+              </label>
+              <input
+                id="username"
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                className={inputClass}
+                placeholder="请输入您的账号"
+              />
             </div>
-
-            <div>
-              <label className="block text-sm mb-1 opacity-80">密码</label>
-              <div
-                className={
-                  "relative flex items-center rounded-xl border transition " +
-                  (isDark
-                    ? "bg-neutral-900 border-neutral-800 focus-within:ring-2 focus-within:ring-indigo-500/50"
-                    : "bg-white border-neutral-200 focus-within:ring-2 focus-within:ring-indigo-500/50")
-                }
-              >
-                <input
-                  type={showPwd ? "text" : "password"}
-                  className="w-full pl-3 pr-10 py-2 rounded-xl bg-transparent outline-none text-sm"
-                  placeholder="密码"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((s) => !s)}
-                  className={
-                    "absolute right-2 h-8 w-8 rounded-lg flex items-center justify-center text-neutral-500 " +
-                    (isDark ? "hover:bg-neutral-800/70" : "hover:bg-neutral-100")
-                  }
-                  title={showPwd ? "隐藏密码" : "显示密码"}
-                >
-                  {showPwd ? (
-                    // eye-off
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-                      <path d="M2.3 1.7a1 1 0 0 0-1.4 1.4l20 20a1 1 0 0 0 1.4-1.4l-3-3A12.1 12.1 0 0 0 22 12S18.5 5 12 5a9.9 9.9 0 0 0-4.6 1.1L2.3 1.7zM7.1 6.5 9 8.4A3.5 3.5 0 0 1 12 8a4 4 0 0 1 4 4 3.5 3.5 0 0 1-.4 1.6l1.4 1.4A6 6 0 0 0 18 12a6 6 0 0 0-10.9-3.5zM3.2 5.4 5 7.3A12.4 12.4 0 0 0 2 12s3.5 7 10 7a11.4 11.4 0 0 0 4.7-1l1.8 1.8A13.6 13.6 0 0 1 12 21C4.5 21 1 14 1 14s.9-1.8 2.2-3.3A14 14 0 0 1 3.2 5.4z"/>
-                    </svg>
-                  ) : (
-                    // eye
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-                      <path d="M12 5c7.5 0 11 7 11 7s-3.5 7-11 7S1 12 1 12s3.5-7 11-7zm0 2C6.5 7 3.6 11.1 3 12c.6.9 3.5 5 9 5s8.4-4.1 9-5c-.6-.9-3.5-5-9-5zm0 2.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="password">
+                密码
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={inputClass}
+                placeholder="输入登录密码"
+              />
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className={
-                "w-full h-11 rounded-xl text-white text-sm font-medium transition " +
-                (loading
-                  ? "bg-indigo-500/70"
-                  : "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-[0_8px_24px_-12px_rgba(79,70,229,0.6)]")
-              }
-            >
-              {loading ? "登录中…" : "登录"}
+            <button type="submit" className={buttonClass} disabled={submitting}>
+              <span>{submitting ? "登录中..." : "立即登录"}</span>
             </button>
           </form>
-        </div>
+          <p className={`mt-6 text-center text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            遇到问题可联系管理员重置凭证
+          </p>
+        </section>
       </div>
+      <ToastContainer position="top-center" theme={isDark ? "dark" : "light"} />
     </div>
   );
-}
-
-/** 兼容命名导出（若你的 page.jsx 仍写的是 { LoginPage }） */
-export function LoginPage(props) {
-  return <SignIn {...props} />;
 }
