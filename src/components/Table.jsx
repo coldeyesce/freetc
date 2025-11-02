@@ -9,6 +9,7 @@ import {
   faImage,
   faLink,
   faTrashCan,
+  faFileLines,
 } from "@fortawesome/free-solid-svg-icons";
 import TooltipItem from "@/components/Tooltip";
 import { PhotoProvider, PhotoView } from "react-photo-view";
@@ -206,17 +207,25 @@ export default function Table({ data: initialData = [], isDark = true }) {
                 <div className="flex flex-col items-start gap-2">
                   <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/40 ${previewSize}`}>
                     {card.previewUrl ? (
-                      <PhotoView src={card.previewUrl}>
-                        <div className="flex h-full w-full items-center justify-center">
-                          {card.kind === "video" ? (
-                            <video src={card.previewUrl} className="h-full w-full object-cover" />
-                          ) : (
-                            <img src={card.previewUrl} alt={card.displayName} className="h-full w-full object-cover" />
-                          )}
+                      card.kind === "other" ? (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-[11px] text-slate-300">
+                          <FontAwesomeIcon icon={faFileLines} className="h-6 w-6" />
+                          <span>{kindMeta.label}</span>
                         </div>
-                      </PhotoView>
+                      ) : (
+                        <PhotoView src={card.previewUrl}>
+                          <div className="flex h-full w-full items-center justify-center">
+                            {card.kind === "video"
+                              ? <video src={card.previewUrl} className="h-full w-full object-cover" />
+                              : <img src={card.previewUrl} alt={card.displayName} className="h-full w-full object-cover" />}
+                          </div>
+                        </PhotoView>
+                      )
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">无预览</div>
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-[11px] text-slate-300">
+                        <FontAwesomeIcon icon={faFileLines} className="h-6 w-6" />
+                        <span>{kindMeta.label}</span>
+                      </div>
                     )}
                   </div>
                   <span className={`${badgeClass} gap-1`}>

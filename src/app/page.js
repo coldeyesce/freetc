@@ -15,6 +15,8 @@ import {
   faFileLines,
   faFileCode,
   faInbox,
+  faFile,
+  faVideo,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { ToastContainer, toast } from "react-toastify";
@@ -30,6 +32,44 @@ const LoginButton = ({ onClick, children }) => (
     {children}
   </button>
 );
+
+const IMAGE_EXTENSIONS = [
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "bmp",
+  "tiff",
+  "tif",
+  "webp",
+  "svg",
+  "ico",
+  "heic",
+  "heif",
+  "raw",
+  "psd",
+  "ai",
+  "eps",
+];
+
+const VIDEO_EXTENSIONS = [
+  "mp4",
+  "mkv",
+  "avi",
+  "mov",
+  "wmv",
+  "flv",
+  "webm",
+  "ogg",
+  "ogv",
+  "m4v",
+  "3gp",
+  "3g2",
+  "mpg",
+  "mpeg",
+  "mxf",
+  "vob",
+];
 
 export default function Home() {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -411,6 +451,17 @@ export default function Home() {
   );
 
   const renderUploadedPreviews = () => {
+    const resolveKind = (fileMeta) => {
+      const type = fileMeta.type || "";
+      if (type.startsWith("image/")) return "image";
+      if (type.startsWith("video/")) return "video";
+      const name = (fileMeta.name || fileMeta.url || "").toLowerCase();
+      const ext = name.includes(".") ? name.split(".").pop() : "";
+      if (IMAGE_EXTENSIONS.includes(ext)) return "image";
+      if (VIDEO_EXTENSIONS.includes(ext)) return "video";
+      return "other";
+    };
+
     if (uploadedImages.length === 0) {
       return renderEmptyState("暂无上传结果");
     }
@@ -423,30 +474,40 @@ export default function Home() {
             className={`flex flex-col gap-4 rounded-2xl border p-4 transition-colors md:flex-row ${surfaceClass}`}
           >
             <div className="flex items-center justify-center md:w-48">
-              {data.type?.startsWith("image/") ? (
-                <img
-                  src={data.url}
-                  alt={data.name}
-                  className="h-40 w-40 rounded-2xl object-cover"
-                  onClick={() => openPreviewFromUploaded(data.url, "img")}
-                />
-              ) : data.type?.startsWith("video/") ? (
-                <video
-                  src={data.url}
-                  className="h-40 w-40 rounded-2xl object-cover"
-                  controls
-                  onClick={() => openPreviewFromUploaded(data.url, "video")}
-                />
-              ) : (
-                <div
-                  className={`flex h-40 w-40 items-center justify-center rounded-2xl border px-3 text-center text-xs ${
-                    isDark ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-white text-slate-600"
-                  }`}
-                  onClick={() => openPreviewFromUploaded(data.url, "other")}
-                >
-                  {data.name}
-                </div>
-              )}
+              {(() => {
+                const kind = resolveKind(data);
+                if (kind === "image") {
+                  return (
+                    <img
+                      src={data.url}
+                      alt={data.name}
+                      className="h-40 w-40 rounded-2xl object-cover"
+                      onClick={() => openPreviewFromUploaded(data.url, "img")}
+                    />
+                  );
+                }
+                if (kind === "video") {
+                  return (
+                    <video
+                      src={data.url}
+                      className="h-40 w-40 rounded-2xl object-cover"
+                      controls
+                      onClick={() => openPreviewFromUploaded(data.url, "video")}
+                    />
+                  );
+                }
+                return (
+                  <div
+                    className={`flex h-40 w-40 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs ${
+                      isDark ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-white text-slate-600"
+                    }`}
+                    onClick={() => openPreviewFromUploaded(data.url, "other")}
+                  >
+                    <FontAwesomeIcon icon={faFile} className="h-5 w-5" />
+                    <span className="truncate">{data.name}</span>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex flex-1 flex-col gap-2">
               {linkBuilders.preview.map((builder) => {

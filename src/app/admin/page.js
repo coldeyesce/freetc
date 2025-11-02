@@ -188,7 +188,7 @@ export default function Admin() {
           <div className={`absolute bottom-28 left-12 h-[240px] w-[240px] rounded-full ${heroGlowLeft} blur-[150px]`} />
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 pt-2 pb-10">
+        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 pt-0 pb-10">
           <header
             className={`rounded-[32px] border ${surfaceClass} p-6 ${
               isDark
