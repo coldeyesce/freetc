@@ -7,6 +7,7 @@ import {
   faCopy,
   faFilm,
   faImage,
+  faTags,
   faTrashCan,
   faFileLines,
 } from "@fortawesome/free-solid-svg-icons";
@@ -117,8 +118,18 @@ const resolveFileName = (item) => {
   }
 };
 
-export default function Table({ data: initialData = [], isDark = true }) {
+export default function Table({
+  data: initialData = [],
+  isDark = true,
+  availableTags = [],
+  onUpdateTags,
+  onRegisterTag,
+}) {
   const [data, setData] = useState(initialData);
+  const [editingKey, setEditingKey] = useState(null);
+  const [draftTags, setDraftTags] = useState([]);
+  const [tagDraftInput, setTagDraftInput] = useState("");
+  const [savingKey, setSavingKey] = useState(null);
 
   useEffect(() => {
     setData(initialData);
@@ -159,6 +170,85 @@ export default function Table({ data: initialData = [], isDark = true }) {
     window.open(url, "_blank", "noopener");
   };
 
+  const selectableTags = useMemo(
+    () => availableTags.filter((tag) => tag && tag !== "all"),
+    [availableTags],
+  );
+  const canSubmitDraft = tagDraftInput.trim().length > 0;
+
+  const startEdit = useCallback((card) => {
+    const base = card.kind ? [card.kind] : [];
+    const unique = Array.from(
+      new Set([...(Array.isArray(card.tags) ? card.tags : []), ...base].filter(Boolean)),
+    );
+    setDraftTags(unique);
+    setTagDraftInput("");
+    setEditingKey(card.key);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingKey(null);
+    setDraftTags([]);
+    setTagDraftInput("");
+  }, []);
+
+  const toggleDraftTag = useCallback((tag, lockedTag) => {
+    if (!tag || tag === lockedTag) return;
+    setDraftTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]));
+  }, []);
+
+  const handleDraftTagSubmit = useCallback(
+    (event, lockedTag) => {
+      event.preventDefault();
+      const value = tagDraftInput.trim();
+      if (!value || value === lockedTag) {
+        setTagDraftInput("");
+        return;
+      }
+      setDraftTags((prev) => (prev.includes(value) ? prev : [...prev, value]));
+      if (typeof onRegisterTag === "function") {
+        onRegisterTag(value);
+      }
+      setTagDraftInput("");
+    },
+    [onRegisterTag, tagDraftInput],
+  );
+
+  const handleSaveTags = useCallback(
+    async (card) => {
+      if (typeof onUpdateTags !== "function") {
+        cancelEdit();
+        return;
+      }
+      const baseTag = card.kind;
+      const normalized = Array.from(
+        new Set(
+          [
+            ...(draftTags ?? []),
+            baseTag,
+          ]
+            .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+            .filter(Boolean),
+        ),
+      );
+      setSavingKey(card.key);
+      try {
+        const result = await onUpdateTags(card.raw.url, normalized);
+        const storageString = result?.storage ?? result?.storageString ?? `,${normalized.join(",")},`;
+        setData((prev) =>
+          prev.map((item) => (item.url === card.raw.url ? { ...item, tags: storageString } : item)),
+        );
+        toast.success("标签已更新");
+        cancelEdit();
+      } catch (error) {
+        toast.error(error?.message || "标签更新失败");
+      } finally {
+        setSavingKey(null);
+      }
+    },
+    [cancelEdit, draftTags, onUpdateTags],
+  );
+
   const deleteItem = async (name) => {
     try {
       const response = await fetch("/api/admin/delete", {
@@ -198,6 +288,9 @@ export default function Table({ data: initialData = [], isDark = true }) {
       const referer = item.referer || "未设置";
       const ip = item.ip || "未知";
       const tags = parseTags(item.tags);
+      if (kind && !tags.includes(kind)) {
+        tags.push(kind);
+      }
       const extension = displayName.includes(".") ? displayName.split(".").pop()?.toLowerCase() ?? "" : "";
       return {
         key: item.url ?? index,
@@ -234,6 +327,27 @@ export default function Table({ data: initialData = [], isDark = true }) {
     "inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-red-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_10px_28px_-18px_rgba(248,113,113,0.7)] transition hover:scale-[1.04]";
   const previewContainerClass = isDark ? "border-white/12 bg-slate-900/50" : "border-slate-200 bg-slate-100";
   const placeholderTextClass = isDark ? "text-slate-200" : "text-slate-500";
+  const editPanelClass = isDark
+    ? "rounded-2xl border border-white/12 bg-slate-900/60 p-4"
+    : "rounded-2xl border border-slate-200 bg-slate-50 p-4";
+  const tagToggleClass = isDark
+    ? "rounded-full border border-white/15 px-3 py-1 text-[11px] text-slate-200 transition hover:border-blue-400/70 hover:text-blue-100"
+    : "rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-700 transition hover:border-blue-500/70 hover:text-blue-600";
+  const tagToggleActiveClass = isDark
+    ? "border-blue-400/80 bg-blue-500/25 text-blue-100"
+    : "border-blue-500/70 bg-blue-500/10 text-blue-600";
+  const tagToggleLockedClass = isDark
+    ? "cursor-not-allowed border-emerald-400/80 bg-emerald-500/20 text-emerald-100"
+    : "cursor-not-allowed border-emerald-500/70 bg-emerald-100 text-emerald-600";
+  const smallInputClass = isDark
+    ? "w-40 rounded-full border border-white/15 bg-white/8 px-3 py-1 text-xs text-slate-100 placeholder:text-slate-400 focus:border-blue-400/70 focus:outline-none"
+    : "w-40 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-500/60 focus:outline-none";
+  const smallPrimaryButtonClass = isDark
+    ? "rounded-full bg-blue-500/80 px-3 py-1 text-xs text-white transition hover:bg-blue-400/90"
+    : "rounded-full bg-blue-500 px-3 py-1 text-xs text-white transition hover:bg-blue-600";
+  const smallGhostButtonClass = isDark
+    ? "rounded-full border border-white/15 px-3 py-1 text-xs text-slate-200 transition hover:border-blue-400/70"
+    : "rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 transition hover:border-blue-500/60";
 
   if (cards.length === 0) {
     return (
@@ -254,6 +368,20 @@ export default function Table({ data: initialData = [], isDark = true }) {
           const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
           const previewSize = "h-28 w-44 md:h-36 md:w-64";
           const hasUrl = Boolean(card.previewUrl);
+          const isEditing = editingKey === card.key;
+          const lockedTag = card.kind;
+          const combinedOptions = Array.from(
+            new Set(
+              [
+                ...selectableTags,
+                ...(isEditing ? draftTags : card.tags),
+                lockedTag,
+              ].filter(Boolean),
+            ),
+          );
+          const activeDraftSet = isEditing
+            ? new Set([...(draftTags ?? []), ...(lockedTag ? [lockedTag] : [])])
+            : new Set(card.tags ?? []);
           return (
             <div key={card.key} className={`${cardClass} flex flex-col gap-4`}>
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
@@ -326,7 +454,69 @@ export default function Table({ data: initialData = [], isDark = true }) {
                   </div>
                 </div>
               </div>
+              {isEditing && (
+                <div className={`${editPanelClass} space-y-3`}>
+                  <div className="flex flex-wrap gap-2">
+                    {combinedOptions.map((tag) => {
+                      const isLocked = tag === lockedTag;
+                      const isActive = activeDraftSet.has(tag);
+                      return (
+                        <button
+                          type="button"
+                          key={tag}
+                          onClick={() => toggleDraftTag(tag, lockedTag)}
+                          className={`${tagToggleClass} ${isActive ? tagToggleActiveClass : ""} ${isLocked ? tagToggleLockedClass : ""}`}
+                          disabled={isLocked}
+                        >
+                          {isLocked ? `默认·${tag}` : tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <form onSubmit={(event) => handleDraftTagSubmit(event, lockedTag)} className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={tagDraftInput}
+                      onChange={(event) => setTagDraftInput(event.target.value)}
+                      placeholder="输入新标签并回车"
+                      className={smallInputClass}
+                    />
+                    <button type="submit" className={smallPrimaryButtonClass} disabled={!canSubmitDraft}>
+                      新增
+                    </button>
+                  </form>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveTags(card)}
+                      className={smallPrimaryButtonClass}
+                      disabled={savingKey === card.key}
+                    >
+                      保存标签
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className={smallGhostButtonClass}
+                      disabled={savingKey === card.key}
+                    >
+                      取消
+                    </button>
+                  </div>
+                  <p className={`text-[11px] ${mutedTextClass}`}>
+                    系统会根据文件类型自动保留 {kindMeta.label} 标签，无法移除。
+                  </p>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => (isEditing ? cancelEdit() : startEdit(card))}
+                  className={actionButtonClass}
+                  disabled={savingKey === card.key}
+                >
+                  <FontAwesomeIcon icon={faTags} className="h-3 w-3" />
+                  {isEditing ? "收起标签" : "管理标签"}
+                </button>
                 {card.linkOptions.map((option) => (
                   <button
                     type="button"
@@ -360,3 +550,4 @@ export default function Table({ data: initialData = [], isDark = true }) {
     </PhotoProvider>
   );
 }
+

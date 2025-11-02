@@ -1,4 +1,4 @@
-import { getRequestContext } from "@cloudflare/next-on-pages";
+﻿import { getRequestContext } from "@cloudflare/next-on-pages";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,3 +63,5 @@ export async function GET() {
     );
   }
 }
+
+

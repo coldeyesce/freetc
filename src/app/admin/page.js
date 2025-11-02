@@ -84,6 +84,12 @@ export default function Admin() {
   const tagButtonActiveClass = isDark
     ? "border-blue-400/80 bg-blue-500/20 text-blue-100 shadow-[0_12px_28px_-18px_rgba(59,130,246,0.55)]"
     : "border-blue-500/70 bg-blue-500/10 text-blue-600 shadow-[0_12px_28px_-18px_rgba(59,130,246,0.35)]";
+  const tagInputClass = isDark
+    ? "w-48 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-400 focus:border-blue-400/70 focus:outline-none"
+    : "w-48 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-blue-500/60 focus:outline-none";
+  const tagAddButtonClass = isDark
+    ? "rounded-full bg-blue-500/80 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-400/90"
+    : "rounded-full bg-blue-500 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600";
   const getTagLabel = (tag) => {
     switch (tag) {
       case "all":
@@ -98,6 +104,15 @@ export default function Admin() {
         return tag;
     }
   };
+
+  const registerAvailableTag = useCallback((tag) => {
+    const value = typeof tag === "string" ? tag.trim() : "";
+    if (!value || value === "all") return;
+    setAvailableTags((prev) => {
+      if (prev.includes(value)) return prev;
+      return [...prev, value];
+    });
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -212,12 +227,35 @@ export default function Admin() {
     event.preventDefault();
     const value = newTag.trim();
     if (!value) return;
-    if (!availableTags.includes(value)) {
-      setAvailableTags((prev) => [...prev, value]);
-    }
+    registerAvailableTag(value);
     setActiveTag(value);
     setNewTag("");
+    setCurrentPage(1);
   };
+
+  const handleUpdateItemTags = useCallback(
+    async (url, tags) => {
+      const response = await fetch("/api/admin/tags", {
+        method: "PATCH",
+        headers: REQUEST_HEADERS,
+        body: JSON.stringify({ url, tags }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "更新标签失败");
+      }
+      const storage = data.storage ?? data.storageString ?? "";
+      setListData((prev) =>
+        prev.map((item) => (item.url === url ? { ...item, tags: storage } : item)),
+      );
+      if (Array.isArray(data.tags)) {
+        data.tags.forEach(registerAvailableTag);
+      }
+      fetchTags();
+      return data;
+    },
+    [fetchTags, registerAvailableTag],
+  );
 
   const currentTagLabel = getTagLabel(activeTag);
 
@@ -340,23 +378,9 @@ export default function Admin() {
                     </button>
                   </div>
                 </form>
-                <div className="flex flex-wrap items-center gap-2">
-                  {PRIMARY_TAGS.map((tag) => {
-                    const isActive = activeTag === tag;
-                    return (
-                      <button
-                        type="button"
-                        key={tag}
-                        onClick={() => handleTagSelect(tag)}
-                        className={`${tagButtonClass} ${isActive ? tagButtonActiveClass : ""}`}
-                      >
-                        {getTagLabel(tag)}
-                      </button>
-                    );
-                  })}
-                  {availableTags
-                    .filter((tag) => !PRIMARY_TAGS.includes(tag))
-                    .map((tag) => {
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {PRIMARY_TAGS.map((tag) => {
                       const isActive = activeTag === tag;
                       return (
                         <button
@@ -369,6 +393,33 @@ export default function Admin() {
                         </button>
                       );
                     })}
+                    {availableTags
+                      .filter((tag) => !PRIMARY_TAGS.includes(tag))
+                      .map((tag) => {
+                        const isActive = activeTag === tag;
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => handleTagSelect(tag)}
+                            className={`${tagButtonClass} ${isActive ? tagButtonActiveClass : ""}`}
+                          >
+                            {getTagLabel(tag)}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <form onSubmit={handleAddTagFilter} className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={newTag}
+                      onChange={(event) => setNewTag(event.target.value)}
+                      placeholder="新增标签并立即筛选"
+                      className={tagInputClass}
+                    />
+                    <button type="submit" className={tagAddButtonClass}>
+                      添加并筛选
+                    </button>
+                  </form>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -386,7 +437,13 @@ export default function Admin() {
             <div className="mt-6">
               <div className="relative">
                 <LoadingOverlay loading={loading} />
-                <Table data={listData} isDark={isDark} />
+                <Table
+                  data={listData}
+                  isDark={isDark}
+                  availableTags={availableTags}
+                  onUpdateTags={handleUpdateItemTags}
+                  onRegisterTag={registerAvailableTag}
+                />
               </div>
 
               <div className={`mt-6 flex flex-col gap-4 rounded-[20px] border ${surfaceClass} p-4 text-sm text-slate-200 sm:flex-row sm:items-center sm:justify-between`}>
