@@ -22,6 +22,7 @@ const REQUEST_HEADERS = {
 };
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+const PRIMARY_TAGS = ["all", "file", "image", "video"];
 
 export default function Admin() {
   const [listData, setListData] = useState([]);
@@ -34,7 +35,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [pageSize, setPageSize] = useState(5);
-  const [availableTags, setAvailableTags] = useState(["all", "image", "video", "file"]);
+  const [availableTags, setAvailableTags] = useState(PRIMARY_TAGS);
   const [activeTag, setActiveTag] = useState("all");
   const [newTag, setNewTag] = useState("");
 
@@ -77,10 +78,16 @@ export default function Admin() {
   const selectClass = isDark
     ? "rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-400/70 focus:outline-none"
     : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-blue-500/60 focus:outline-none";
+  const tagButtonClass = isDark
+    ? "flex items-center rounded-full border border-white/15 bg-white/8 px-4 py-1.5 text-xs text-slate-200 transition hover:border-blue-400/70 hover:text-blue-100"
+    : "flex items-center rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs text-slate-700 transition hover:border-blue-500/60 hover:text-blue-600";
+  const tagButtonActiveClass = isDark
+    ? "border-blue-400/80 bg-blue-500/20 text-blue-100 shadow-[0_12px_28px_-18px_rgba(59,130,246,0.55)]"
+    : "border-blue-500/70 bg-blue-500/10 text-blue-600 shadow-[0_12px_28px_-18px_rgba(59,130,246,0.35)]";
   const getTagLabel = (tag) => {
     switch (tag) {
       case "all":
-        return "全部";
+        return "所有";
       case "image":
         return "图片";
       case "video":
@@ -102,7 +109,7 @@ export default function Admin() {
       if (!res.ok) return;
       const data = await res.json();
       if (data?.success && Array.isArray(data.tags)) {
-        const base = new Set(["all", "image", "video", "file"]);
+        const base = new Set(PRIMARY_TAGS);
         data.tags.forEach((tag) => base.add(tag));
         setAvailableTags(Array.from(base));
       }
@@ -187,6 +194,7 @@ export default function Admin() {
   const handleResetSearch = () => {
     setSearchInput("");
     setSearchQuery("");
+    setActiveTag("all");
     setCurrentPage(1);
   };
 
@@ -305,32 +313,64 @@ export default function Admin() {
           </header>
 
           <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
-            <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
-              <form onSubmit={handleSearch} className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                <div className="relative flex-1">
-                  <FontAwesomeIcon
-                    icon={faMagnifyingGlass}
-                    className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                  />
-                  <input
-                    type="text"
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="输入文件名或关键字"
-                    className={inputClass}
-                  />
+            <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex w-full flex-col gap-3">
+                <form onSubmit={handleSearch} className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="relative flex-1">
+                    <FontAwesomeIcon
+                      icon={faMagnifyingGlass}
+                      className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      type="text"
+                      value={searchInput}
+                      onChange={(event) => setSearchInput(event.target.value)}
+                      placeholder="输入文件名或关键字"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <button type="submit" className={primaryButtonClass}>
+                      <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
+                      搜索
+                    </button>
+                    <button type="button" onClick={handleResetSearch} className={subtleButtonClass}>
+                      <FontAwesomeIcon icon={faArrowRightArrowLeft} className="h-4 w-4" />
+                      清空筛选
+                    </button>
+                  </div>
+                </form>
+                <div className="flex flex-wrap items-center gap-2">
+                  {PRIMARY_TAGS.map((tag) => {
+                    const isActive = activeTag === tag;
+                    return (
+                      <button
+                        type="button"
+                        key={tag}
+                        onClick={() => handleTagSelect(tag)}
+                        className={`${tagButtonClass} ${isActive ? tagButtonActiveClass : ""}`}
+                      >
+                        {getTagLabel(tag)}
+                      </button>
+                    );
+                  })}
+                  {availableTags
+                    .filter((tag) => !PRIMARY_TAGS.includes(tag))
+                    .map((tag) => {
+                      const isActive = activeTag === tag;
+                      return (
+                        <button
+                          type="button"
+                          key={tag}
+                          onClick={() => handleTagSelect(tag)}
+                          className={`${tagButtonClass} ${isActive ? tagButtonActiveClass : ""}`}
+                        >
+                          {getTagLabel(tag)}
+                        </button>
+                      );
+                    })}
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <button type="submit" className={primaryButtonClass}>
-                    <FontAwesomeIcon icon={faMagnifyingGlass} className="h-4 w-4" />
-                    搜索
-                  </button>
-                  <button type="button" onClick={handleResetSearch} className={subtleButtonClass}>
-                    <FontAwesomeIcon icon={faArrowRightArrowLeft} className="h-4 w-4" />
-                    清空筛选
-                  </button>
-                </div>
-              </form>
+              </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className={mutedTextClass}>每页显示</span>
                 <select value={pageSize} onChange={handlePageSizeChange} className={selectClass}>
