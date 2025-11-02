@@ -468,76 +468,79 @@ export default function Home() {
 
     return (
       <div className="space-y-4">
-        {uploadedImages.map((data, index) => (
-          <div
-            key={index}
-            className={`flex flex-col gap-4 rounded-2xl border p-4 transition-colors md:flex-row ${surfaceClass}`}
-          >
-            <div className="flex items-center justify-center md:w-48">
-              {(() => {
-                const kind = resolveKind(data);
-                if (kind === "image") {
+        {uploadedImages.map((data, index) => {
+          const kind = resolveKind(data);
+
+          const renderThumb = () => {
+            if (kind === "image") {
+              return (
+                <img
+                  src={data.url}
+                  alt={data.name}
+                  className="h-28 w-28 rounded-2xl object-cover sm:h-32 sm:w-32"
+                  onClick={() => openPreviewFromUploaded(data.url, "img")}
+                />
+              );
+            }
+            if (kind === "video") {
+              return (
+                <video
+                  src={data.url}
+                  className="h-28 w-28 rounded-2xl object-cover sm:h-32 sm:w-32"
+                  controls
+                  onClick={() => openPreviewFromUploaded(data.url, "video")}
+                />
+              );
+            }
+            return (
+              <div
+                className={`flex h-28 w-28 flex-col items-center justify-center gap-2 rounded-2xl border text-center text-xs sm:h-32 sm:w-32 ${
+                  isDark ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-white text-slate-600"
+                }`}
+                onClick={() => openPreviewFromUploaded(data.url, "other")}
+              >
+                <FontAwesomeIcon icon={faFile} className="h-6 w-6" />
+                <span className="line-clamp-2 break-all px-2">{data.name}</span>
+              </div>
+            );
+          };
+
+          return (
+            <div
+              key={index}
+              className={`flex flex-col gap-4 rounded-2xl border p-4 transition-colors md:flex-row ${surfaceClass}`}
+            >
+              <div className="flex items-center justify-center md:w-40">{renderThumb()}</div>
+              <div className="flex flex-1 flex-col gap-2">
+                {linkBuilders.preview.map((builder) => {
+                  const value = builder.value(data);
                   return (
-                    <img
-                      src={data.url}
-                      alt={data.name}
-                      className="h-40 w-40 rounded-2xl object-cover"
-                      onClick={() => openPreviewFromUploaded(data.url, "img")}
-                    />
-                  );
-                }
-                if (kind === "video") {
-                  return (
-                    <video
-                      src={data.url}
-                      className="h-40 w-40 rounded-2xl object-cover"
-                      controls
-                      onClick={() => openPreviewFromUploaded(data.url, "video")}
-                    />
-                  );
-                }
-                return (
-                  <div
-                    className={`flex h-40 w-40 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs ${
-                      isDark ? "border-white/10 bg-white/5 text-slate-200" : "border-slate-200 bg-white text-slate-600"
-                    }`}
-                    onClick={() => openPreviewFromUploaded(data.url, "other")}
-                  >
-                    <FontAwesomeIcon icon={faFile} className="h-5 w-5" />
-                    <span className="truncate">{data.name}</span>
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="flex flex-1 flex-col gap-2">
-              {linkBuilders.preview.map((builder) => {
-                const value = builder.value(data);
-                return (
-                  <div key={`${builder.label}-${index}`} className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                    <span className={`text-xs font-semibold uppercase tracking-[0.3em] ${mutedTextClass}`}>
-                      {builder.label}
-                    </span>
-                    <div className="flex w-full gap-2">
-                      <input
-                        readOnly
-                        value={value}
-                        onClick={() => handleCopy(value)}
-                        className={`flex-1 rounded-xl border px-3 py-2 text-sm shadow-inner focus:outline-none focus:ring-2 ${actionButtonClass}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(value)}
-                        className="rounded-xl bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03]"
-                      >
-                        复制
-                      </button>
+                    <div key={`${builder.label}-${index}`} className="flex flex-col gap-1 sm:flex-row sm:items-center">
+                      <span className={`text-xs font-semibold uppercase tracking-[0.3em] ${mutedTextClass}`}>
+                        {builder.label}
+                      </span>
+                      <div className="flex w-full gap-2">
+                        <input
+                          readOnly
+                          value={value}
+                          onClick={() => handleCopy(value)}
+                          className={`flex-1 rounded-xl border px-3 py-2 text-sm shadow-inner focus:outline-none focus:ring-2 ${actionButtonClass}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(value)}
+                          className="rounded-xl bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03]"
+                        >
+                          复制
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
