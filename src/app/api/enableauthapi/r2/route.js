@@ -1,4 +1,4 @@
-export const runtime = "edge";
+﻿export const runtime = "edge";
 
 import { auth } from "@/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
@@ -56,7 +56,7 @@ async function ensureTagsColumn(db) {
   try {
     await db.prepare("ALTER TABLE imginfo ADD COLUMN tags TEXT DEFAULT ''").run();
   } catch (error) {
-    // 列可能已经存在，忽略错误
+    // 列可能已经存在，忽略报错
   } finally {
     tagsColumnEnsured = true;
   }
@@ -205,7 +205,7 @@ export async function POST(request) {
         return Response.json(
           {
             status: 429,
-            message: "今日上传次数已达上限，请明天再试或升级权限。",
+            message: "今日上传次数已达上限，请明天再试或提升权限。",
             success: false,
           },
           {
@@ -239,7 +239,7 @@ export async function POST(request) {
       return Response.json(
         {
           status: 404,
-          message: "上传失败",
+          message: "涓婁紶澶辫触",
           success: false,
         },
         {
@@ -387,3 +387,5 @@ async function getRating(env, url) {
     return -1;
   }
 }
+
+

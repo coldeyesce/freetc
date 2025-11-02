@@ -1,5 +1,5 @@
 ﻿"use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -72,19 +72,19 @@ const buildLinkPresets = (url) => {
   if (!url) return [];
   return [
     {
-      label: "直链",
+      label: "访问链接",
       value: url,
-      successMessage: "直链已复制到剪贴板",
-    },
-    {
-      label: "Markdown",
-      value: `![image](${url})`,
-      successMessage: "Markdown 已复制到剪贴板",
+      successMessage: "访问链接已复制到剪贴板",
     },
     {
       label: "HTML",
       value: `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="image" /></a>`,
       successMessage: "HTML 已复制到剪贴板",
+    },
+    {
+      label: "Markdown",
+      value: `![image](${url})`,
+      successMessage: "Markdown 已复制到剪贴板",
     },
     {
       label: "BBCode",
@@ -104,13 +104,13 @@ const parseTags = (value) => {
 };
 
 const resolveFileName = (item) => {
-  if (!item) return "未命名文件";
+  if (!item) return "未知文件";
   const candidate =
     item.name ||
     item.filename ||
     item.displayName ||
     (typeof item.url === "string" ? item.url.split("/").pop() : "");
-  if (!candidate) return "未命名文件";
+  if (!candidate) return "未知文件";
   try {
     return decodeURIComponent(candidate);
   } catch (error) {
@@ -124,8 +124,11 @@ export default function Table({
   availableTags = [],
   onUpdateTags,
   onRegisterTag,
+  onAfterDelete,
 }) {
   const [data, setData] = useState(initialData);
+  const [selectedKeys, setSelectedKeys] = useState(() => new Set());
+  const selectAllRef = useRef(null);
   const [editingKey, setEditingKey] = useState(null);
   const [draftTags, setDraftTags] = useState([]);
   const [tagDraftInput, setTagDraftInput] = useState("");
@@ -133,6 +136,7 @@ export default function Table({
 
   useEffect(() => {
     setData(initialData);
+    setSelectedKeys(new Set());
   }, [initialData]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -161,7 +165,7 @@ export default function Table({
       await navigator.clipboard.writeText(text);
       toast.success(successMessage);
     } catch {
-      toast.error("复制失败，请稍后再试");
+      toast.error("复制失败，请稍后重试");
     }
   };
 
@@ -265,11 +269,19 @@ export default function Table({
       if (result.success) {
         toast.success("删除成功");
         setData((prev) => prev.filter((item) => item.url !== name));
+        setSelectedKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(name);
+          return next;
+        });
+        if (typeof onAfterDelete === "function") {
+          onAfterDelete([name]);
+        }
       } else {
-        toast.error(result.message || "删除失败，请稍后再试");
+        toast.error(result.message || "删除失败，请稍后重试");
       }
     } catch (error) {
-      toast.error(error.message || "删除失败，请稍后再试");
+      toast.error(error.message || "删除失败，请稍后重试");
     }
   };
 
@@ -310,10 +322,91 @@ export default function Table({
       };
     });
   }, [data, getImgUrl]);
+  const cardKeys = useMemo(() => cards.map((card) => card.raw?.url).filter(Boolean), [cards]);
+  const cardKeyCount = cardKeys.length;
+  const selectedCount = selectedKeys.size;
+  const hasSelection = selectedCount > 0;
+  const allSelected = cardKeyCount > 0 && selectedCount === cardKeyCount;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedCount > 0 && selectedCount < cardKeyCount;
+    }
+  }, [cardKeyCount, selectedCount]);
+
+  const toggleSelection = useCallback((value) => {
+    if (!value) return;
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) {
+        next.delete(value);
+      } else {
+        next.add(value);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (cardKeyCount === 0) return;
+    setSelectedKeys((prev) => {
+      if (prev.size === cardKeyCount) {
+        return new Set();
+      }
+      return new Set(cardKeys);
+    });
+  }, [cardKeyCount, cardKeys]);
+
+  const handleBatchDelete = useCallback(async () => {
+    const keys = Array.from(selectedKeys).filter(Boolean);
+    if (keys.length === 0) return;
+    const confirmed = window.confirm(`确认批量删除选中的 ${keys.length} 条记录吗？`);
+    if (!confirmed) return;
+    try {
+      const response = await fetch("/api/admin/delete", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ names: keys }),
+      });
+      const result = await response.json();
+      const deleted = Array.isArray(result?.deleted) ? result.deleted : [];
+      const failed = Array.isArray(result?.failed) ? result.failed : [];
+
+      if (deleted.length > 0) {
+        setData((prev) => prev.filter((item) => !deleted.includes(item.url)));
+        setSelectedKeys((prev) => {
+          const next = new Set(prev);
+          deleted.forEach((url) => next.delete(url));
+          return next;
+        });
+        toast.success(`已删除 ${deleted.length} 条记录`);
+        if (typeof onAfterDelete === "function") {
+          onAfterDelete(deleted);
+        }
+      }
+
+      if (failed.length > 0) {
+        toast.warn(`有 ${failed.length} 条记录删除失败`);
+      }
+
+      if ((!response.ok || !result?.success) && failed.length === 0 && deleted.length === 0) {
+        throw new Error(result?.message || "批量删除失败");
+      }
+    } catch (error) {
+      toast.error(error.message || "批量删除失败");
+    }
+  }, [onAfterDelete, selectedKeys]);
 
   const cardClass = isDark
     ? "rounded-2xl border border-white/10 bg-white/6 px-5 py-4 backdrop-blur"
     : "rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm";
+  const selectionBarClass = isDark
+    ? "flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/12 bg-white/8 px-4 py-3"
+    : "flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm";
+  const selectionInfoClass = isDark ? "text-xs text-slate-300" : "text-xs text-slate-600";
+  const checkboxClass = "h-4 w-4 cursor-pointer accent-blue-500";
   const badgeClass = isDark
     ? "inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] text-slate-200"
     : "inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-600";
@@ -367,8 +460,34 @@ export default function Table({
   return (
     <PhotoProvider maskOpacity={0.6}>
       <div className="space-y-3">
+        {cardKeyCount > 0 && (
+          <div className={selectionBarClass}>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                className={checkboxClass}
+                checked={allSelected}
+                onChange={toggleSelectAll}
+              />
+              <span className={selectionInfoClass}>全选</span>
+            </label>
+            {hasSelection ? (
+              <div className="flex items-center gap-3 text-xs">
+                <span className={selectionInfoClass}>已选择 {selectedCount} 项</span>
+                <button type="button" onClick={handleBatchDelete} className={deleteButtonClass}>
+                  <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
+                  批量删除
+                </button>
+              </div>
+            ) : (
+              <span className={selectionInfoClass}>勾选文件后可执行批量删除</span>
+            )}
+          </div>
+        )}
         {cards.map((card) => {
           const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
+          const selectionValue = card.raw?.url ?? null;
           const previewSize = "h-28 w-44 md:h-36 md:w-64";
           const hasUrl = Boolean(card.previewUrl);
           const isEditing = editingKey === card.key;
@@ -386,7 +505,17 @@ export default function Table({
             ? new Set([...(draftTags ?? []), ...(lockedTag ? [lockedTag] : [])])
             : new Set(card.tags ?? []);
           return (
-            <div key={card.key} className={`${cardClass} flex flex-col gap-4`}>
+            <div key={card.key} className={`${cardClass} relative flex flex-col gap-4`}>
+              {selectionValue && (
+                <label className="absolute right-4 top-4 flex items-center">
+                  <input
+                    type="checkbox"
+                    className={checkboxClass}
+                    checked={selectedKeys.has(selectionValue)}
+                    onChange={() => toggleSelection(selectionValue)}
+                  />
+                </label>
+              )}
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
                 <div className="flex flex-col items-start gap-2">
                   <div className={`relative overflow-hidden rounded-xl border ${previewContainerClass} ${previewSize}`}>
@@ -428,7 +557,7 @@ export default function Table({
                       {card.previewUrl}
                     </button>
                   ) : (
-                    <p className={`break-all text-xs ${mutedTextClass}`}>暂无直链</p>
+                    <p className={`break-all text-xs ${mutedTextClass}`}>暂无链接</p>
                   )}
                   {card.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
@@ -471,7 +600,7 @@ export default function Table({
                           className={`${tagToggleClass} ${isActive ? tagToggleActiveClass : ""} ${isLocked ? tagToggleLockedClass : ""}`}
                           disabled={isLocked}
                         >
-                          {isLocked ? `默认·${tag}` : tag}
+                          {isLocked ? `默认 · ${tag}` : tag}
                         </button>
                       );
                     })}
@@ -518,7 +647,7 @@ export default function Table({
                   disabled={savingKey === card.key}
                 >
                   <FontAwesomeIcon icon={faTags} className="h-3 w-3" />
-                  {isEditing ? "收起标签" : "管理标签"}
+                  {isEditing ? "完成标签管理" : "管理标签"}
                 </button>
                 {card.linkOptions.map((option) => (
                   <button
@@ -553,4 +682,12 @@ export default function Table({
     </PhotoProvider>
   );
 }
+
+
+
+
+
+
+
+
 
