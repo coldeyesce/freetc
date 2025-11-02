@@ -1,5 +1,6 @@
 export const runtime = "edge";
 
+import { auth } from "@/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
 const corsHeaders = {
@@ -48,6 +49,7 @@ const VIDEO_EXTENSIONS = [
 ];
 
 let tagsColumnEnsured = false;
+let quotaTableEnsured = false;
 
 async function ensureTagsColumn(db) {
   if (tagsColumnEnsured) return;
@@ -57,6 +59,27 @@ async function ensureTagsColumn(db) {
     // 列可能已经存在，忽略错误
   } finally {
     tagsColumnEnsured = true;
+  }
+}
+
+async function ensureQuotaTable(db) {
+  if (quotaTableEnsured) return;
+  try {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS upload_quota (
+          identity TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          day TEXT NOT NULL,
+          count INTEGER NOT NULL DEFAULT 0,
+          role TEXT,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (identity, scope, day)
+        )`,
+      )
+      .run();
+  } finally {
+    quotaTableEnsured = true;
   }
 }
 
@@ -109,9 +132,21 @@ export async function POST(request) {
     "";
   const clientIp = ipHeader ? ipHeader.split(",")[0].trim() : "IP not found";
   const referer = request.headers.get("Referer") || "Referer";
+  const session = await auth();
+  const role = session?.user?.role ?? "anonymous";
+  const isAdmin = role === "admin";
+  const isRegular = role === "user";
+  const userIdentifier =
+    (session?.user?.email || session?.user?.id || session?.user?.name || "").toString().trim() || clientIp || "unknown";
+  const anonymousIdentity = `anon:${clientIp || "unknown"}`;
+  const regularIdentity = `user:${userIdentifier}`;
+  const dayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+  }).format(new Date());
 
   const formData = await request.formData();
-  const fileField = formData.get("file");
+  const fileEntries = formData.getAll("file").filter(Boolean);
+  const fileField = fileEntries[0];
   if (!fileField) {
     return Response.json(
       {
@@ -124,6 +159,62 @@ export async function POST(request) {
         headers: corsHeaders,
       },
     );
+  }
+
+  if (!isAdmin && env.IMG) {
+    await ensureQuotaTable(env.IMG);
+
+    if (!isRegular && fileEntries.length > 1) {
+      return Response.json(
+        {
+          status: 400,
+          message: "未登录用户每次仅允许上传一个文件",
+          success: false,
+        },
+        {
+          status: 400,
+          headers: corsHeaders,
+        },
+      );
+    }
+
+    if (!isRegular) {
+      const quota = await env.IMG
+        .prepare("SELECT count FROM upload_quota WHERE identity = ? AND scope = 'lifetime' AND day = 'all'")
+        .bind(anonymousIdentity)
+        .first();
+      if (quota && Number(quota.count) >= 1) {
+        return Response.json(
+          {
+            status: 429,
+            message: "未登录用户仅可体验一次上传，请登录后继续使用。",
+            success: false,
+          },
+          {
+            status: 429,
+            headers: corsHeaders,
+          },
+        );
+      }
+    } else {
+      const quota = await env.IMG
+        .prepare("SELECT count FROM upload_quota WHERE identity = ? AND scope = 'daily' AND day = ?")
+        .bind(regularIdentity, dayKey)
+        .first();
+      if (quota && Number(quota.count) >= 15) {
+        return Response.json(
+          {
+            status: 429,
+            message: "今日上传次数已达上限，请明天再试或升级权限。",
+            success: false,
+          },
+          {
+            status: 429,
+            headers: corsHeaders,
+          },
+        );
+      }
+    }
   }
 
   const fileType = fileField.type || "";
@@ -184,6 +275,29 @@ export async function POST(request) {
     try {
       const ratingIndex = await getRating(env, fileUrl);
       await insertImageData(env.IMG, `/rfile/${filename}`, referer, clientIp, ratingIndex, nowTime, storageString);
+      if (!isAdmin && env.IMG) {
+        if (isRegular) {
+          await env.IMG
+            .prepare(
+              `INSERT INTO upload_quota (identity, scope, day, count, role, updated_at)
+               VALUES (?, 'daily', ?, 1, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(identity, scope, day)
+               DO UPDATE SET count = upload_quota.count + 1, updated_at = CURRENT_TIMESTAMP`,
+            )
+            .bind(regularIdentity, dayKey, role)
+            .run();
+        } else {
+          await env.IMG
+            .prepare(
+              `INSERT INTO upload_quota (identity, scope, day, count, role, updated_at)
+               VALUES (?, 'lifetime', 'all', 1, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(identity, scope, day)
+               DO UPDATE SET count = upload_quota.count + 1, updated_at = CURRENT_TIMESTAMP`,
+            )
+            .bind(anonymousIdentity, role)
+            .run();
+        }
+      }
 
       return Response.json(
         {
