@@ -1,9 +1,8 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import Switcher from "@/components/SwitchButton";
 import TooltipItem from "@/components/Tooltip";
-import FullScreenIcon from "@/components/FullScreenIcon";
-import { toast } from "react-toastify";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 
 const IMAGE_EXTENSIONS = [
@@ -49,36 +48,19 @@ const formatDateTime = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   const pad = (num) => String(num).padStart(2, "0");
-  return `${date.getFullYear()}年${pad(date.getMonth() + 1)}月${pad(
-    date.getDate(),
-  )}日 ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
-    date.getSeconds(),
+  return `${date.getFullYear()}年${pad(date.getMonth() + 1)}月${pad(date.getDate())}日 ${pad(date.getHours())}:${pad(
+    date.getMinutes(),
   )}`;
 };
 
 const buildLinkOptions = (url) => [
-  {
-    label: "直链",
-    value: url,
-  },
-  {
-    label: "Markdown",
-    value: `![image](${url})`,
-  },
-  {
-    label: "HTML",
-    value: `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="image" /></a>`,
-  },
-  {
-    label: "BBCode",
-    value: `[img]${url}[/img]`,
-  },
+  { label: "直链", value: url },
+  { label: "Markdown", value: `![image](${url})` },
+  { label: "HTML", value: `<a href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="image" /></a>` },
 ];
 
-export default function Table({ data: initialData = [] }) {
+export default function Table({ data: initialData = [], isDark = true }) {
   const [data, setData] = useState(initialData);
-  const [modalData, setModalData] = useState(null);
-  const modalRef = useRef(null);
 
   useEffect(() => {
     setData(initialData);
@@ -86,29 +68,31 @@ export default function Table({ data: initialData = [] }) {
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-  const getImgUrl = (url) => {
+  const getImgUrl = useCallback((url) => {
     if (!url) return "";
     if (url.startsWith("/file/") || url.startsWith("/cfile/") || url.startsWith("/rfile/")) {
       return `${origin}/api${url}`;
     }
     return url;
+  }, [origin]);
+
+  const isVideo = (url) => {
+    if (!url) return false;
+    return VIDEO_EXTENSIONS.some((ext) => url.toLowerCase().endsWith(ext));
   };
 
-  const handleNameClick = (item) => {
-    setModalData(item);
-  };
-
-  const handleCloseModal = () => {
-    setModalData(null);
-  };
-
-  const handleCopy = async (text) => {
+  const handleCopy = async (text, message = "链接已复制") => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("链接复制成功");
+      toast.success(message);
     } catch (error) {
       toast.error("复制失败，请稍后再试");
     }
+  };
+
+  const handleOpen = (url) => {
+    if (!url) return;
+    window.open(url, "_blank", "noopener");
   };
 
   const deleteItem = async (name) => {
@@ -140,233 +124,151 @@ export default function Table({ data: initialData = [] }) {
     }
   };
 
-  function toggleFullScreen() {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      const element = document.documentElement;
-      if (element) {
-        element.requestFullscreen();
-      }
-    }
-  }
+  const cards = useMemo(() => {
+    if (!Array.isArray(data) || data.length === 0) return [];
+    return data.map((item, index) => {
+      const previewUrl = getImgUrl(item.url);
+      const linkOptions = buildLinkOptions(previewUrl);
+      const referer = item.referer || "未设置";
+      const ip = item.ip || "未知";
 
-  const getLastSegment = (url) => {
-    if (!url) return "";
-    const lastSlashIndex = url.lastIndexOf("/");
-    return url.substring(lastSlashIndex + 1);
-  };
-
-  const isVideo = (url) => {
-    if (!url) return false;
-    return VIDEO_EXTENSIONS.some((ext) => url.toLowerCase().endsWith(ext));
-  };
-
-  const renderFile = (fileUrl, index) => {
-    if (!fileUrl) return null;
-    const extension = getLastSegment(fileUrl).split(".").pop()?.toLowerCase() ?? "";
-    if (IMAGE_EXTENSIONS.includes(extension)) {
-      return (
-        <img
-          key={`image-${index}`}
-          src={fileUrl}
-          alt={`uploaded-${index}`}
-          className="h-full w-full rounded-2xl object-cover"
-        />
+      const previewNode = (
+        <div className="relative h-44 w-full overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60">
+          {previewUrl ? (
+            <PhotoView key={previewUrl} src={previewUrl}>
+              <div className="flex h-full w-full items-center justify-center">
+                {isVideo(previewUrl) ? (
+                  <video src={previewUrl} controls className="h-full w-full rounded-3xl object-cover" />
+                ) : (
+                  <img src={previewUrl} alt={item.url || `preview-${index}`} className="h-full w-full object-cover" />
+                )}
+              </div>
+            </PhotoView>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">无预览</div>
+          )}
+        </div>
       );
-    }
-    if (VIDEO_EXTENSIONS.includes(extension)) {
-      return (
-        <video
-          key={`video-${index}`}
-          src={fileUrl}
-          controls
-          className="h-full w-full rounded-2xl object-cover"
-        />
-      );
-    }
+
+      return {
+        key: item.url ?? index,
+        preview: previewNode,
+        name: item.url || "未命名文件",
+        time: formatDateTime(item.time || item.created_at),
+        referer,
+        ip,
+        pv: item.total ?? item.pv ?? 0,
+        rating: item.rating ?? 0,
+        previewUrl,
+        linkOptions,
+        raw: item,
+      };
+    });
+  }, [data, getImgUrl]);
+
+  const cardClass = isDark
+    ? "rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur"
+    : "rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm";
+  const metaLabelClass = isDark ? "text-xs font-semibold text-slate-300" : "text-xs font-semibold text-slate-500";
+  const metaValueClass = isDark ? "text-sm text-white" : "text-sm text-slate-800";
+  const secondaryTextClass = isDark ? "text-xs text-slate-400" : "text-xs text-slate-500";
+  const dividerClass = isDark ? "border-white/10" : "border-slate-200";
+  const subtleButtonClass = isDark
+    ? "rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-slate-100 transition hover:border-blue-400/60"
+    : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 transition hover:border-blue-400/60";
+  const primaryButtonClass =
+    "rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_12px_45px_-18px_rgba(37,99,235,0.8)] transition hover:scale-[1.03]";
+
+  if (cards.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-2xl bg-slate-900/60 text-xs text-slate-200">
-        {extension || "文件"}
+      <div
+        className={`flex flex-col items-center justify-center rounded-[26px] border ${dividerClass} bg-white/5 py-16 text-sm ${
+          isDark ? "text-slate-300" : "text-slate-600"
+        }`}
+      >
+        暂无数据，试试调整筛选条件或上传文件。
       </div>
     );
-  };
-
-  const elementSize = 420;
-
-  const tableContainerClass =
-    "max-h-[58vh] overflow-auto rounded-[26px] border border-white/10 bg-slate-950/30 backdrop-blur";
-  const tableClass = "min-w-full border-separate border-spacing-0 text-sm text-slate-200";
-  const headerCellClass =
-    "px-5 py-4 border-b border-white/10 bg-slate-950/80 text-center text-xs font-semibold uppercase tracking-[0.3em] text-slate-300";
-  const cellBaseClass = "px-5 py-4 border-b border-white/5 text-center text-sm text-slate-200";
-  const stickyPreviewHeaderClass = `${headerCellClass} sticky left-0 z-30 shadow-[6px_0_18px_-12px_rgba(8,11,30,0.9)]`;
-  const stickyPreviewCellClass = `${cellBaseClass} sticky left-0 z-10 bg-slate-950/70 shadow-[10px_0_22px_-14px_rgba(8,11,30,0.9)]`;
-  const stickyActionHeaderClass = `${headerCellClass} sticky right-0 z-30 shadow-[-6px_0_18px_-12px_rgba(8,11,30,0.9)]`;
-  const stickyActionCellClass = `${cellBaseClass} sticky right-0 z-10 bg-slate-950/70 shadow-[-10px_0_22px_-14px_rgba(8,11,30,0.9)]`;
+  }
 
   return (
-    <div className="relative">
-      <div className={tableContainerClass}>
-        <table className={tableClass}>
-          <thead>
-            <tr className="sticky top-0 z-20 bg-slate-950/90 backdrop-blur">
-              <th className={headerCellClass}>name</th>
-              <th className={stickyPreviewHeaderClass}>preview</th>
-              <th className={headerCellClass}>time</th>
-              <th className={headerCellClass}>referer</th>
-              <th className={headerCellClass}>ip</th>
-              <th className={headerCellClass}>PV</th>
-              <th className={headerCellClass}>rating</th>
-              <th className={stickyActionHeaderClass}>限制访问</th>
-            </tr>
-          </thead>
-          <tbody>
-            <PhotoProvider
-              maskOpacity={0.6}
-              toolbarRender={({ rotate, onRotate, onScale, scale }) => (
-                <>
-                  <svg
-                    className="PhotoView-Slider__toolbarIcon"
-                    width="44"
-                    height="44"
-                    viewBox="0 0 768 768"
-                    fill="white"
-                    onClick={() => onScale(scale + 0.5)}
-                  >
-                    <path d="M384 640.5q105 0 180.75-75.75t75.75-180.75-75.75-180.75-180.75-75.75-180.75 75.75-75.75 180.75 75.75 180.75 180.75 75.75zM384 64.5q132 0 225.75 93.75t93.75 225.75-93.75 225.75-225.75 93.75-225.75-93.75-93.75-225.75 93.75-225.75 225.75-93.75zM415.5 223.5v129h129v63h-129v129h-63v-129h-129v-63h129v-129h63z" />
-                  </svg>
-                  <svg
-                    className="PhotoView-Slider__toolbarIcon"
-                    width="44"
-                    height="44"
-                    viewBox="0 0 768 768"
-                    fill="white"
-                    onClick={() => onScale(scale - 0.5)}
-                  >
-                    <path d="M384 640.5q105 0 180.75-75.75t75.75-180.75-75.75-180.75-180.75-75.75-180.75 75.75-75.75 180.75 75.75 180.75 180.75 75.75zM384 64.5q132 0 225.75 93.75t93.75 225.75-93.75 225.75-225.75 93.75-225.75-93.75-93.75-225.75 93.75-225.75 225.75-93.75zM223.5 352.5h321v63h-321v-63z" />
-                  </svg>
-                  <svg
-                    className="PhotoView-Slider__toolbarIcon"
-                    onClick={() => onRotate(rotate + 90)}
-                    width="44"
-                    height="44"
-                    fill="white"
-                    viewBox="0 0 768 768"
-                  >
-                    <path d="M565.5 202.5l75-75v225h-225l103.5-103.5c-34.5-34.5-82.5-57-135-57-106.5 0-192 85.5-192 192s85.5 192 192 192c84 0 156-52.5 181.5-127.5h66c-28.5 111-127.5 192-247.5 192-141 0-255-115.5-255-256.5s114-256.5 255-256.5c70.5 0 135 28.5 181.5 75z" />
-                  </svg>
-                  {document.fullscreenEnabled && <FullScreenIcon onClick={toggleFullScreen} />}
-                </>
-              )}
-            >
-              {data.map((item, index) => {
-                const previewUrl = getImgUrl(item.url);
-                return (
-                  <tr key={item.url ?? index} className="odd:bg-slate-900/40 even:bg-slate-950/30">
-                    <td
-                      onClick={() => handleNameClick(item)}
-                      className={`${cellBaseClass} cursor-pointer truncate text-slate-300 hover:text-white`}
-                    >
-                      {item.url}
-                    </td>
-                    <td className={`${stickyPreviewCellClass} h-24 w-24`}>
-                      {isVideo(previewUrl) ? (
-                        <PhotoView
-                          key={previewUrl}
-                          width={elementSize}
-                          height={elementSize}
-                          render={({ attrs }) => (
-                            <div {...attrs} className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-slate-900/60">
-                              {renderFile(previewUrl, index)}
-                            </div>
-                          )}
-                        >
-                          {renderFile(previewUrl, index)}
-                        </PhotoView>
-                      ) : (
-                        <PhotoView key={previewUrl} src={previewUrl}>
-                          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-slate-900/60">
-                            {renderFile(previewUrl, index)}
-                          </div>
-                        </PhotoView>
-                      )}
-                    </td>
-                    <td className={cellBaseClass}>{formatDateTime(item.time || item.created_at)}</td>
-                    <td className={`${cellBaseClass} max-w-[200px]`}>
-                      <TooltipItem tooltipsText={item.referer || "未设置"} position="bottom">
-                        <span className="truncate">{item.referer || "未设置"}</span>
-                      </TooltipItem>
-                    </td>
-                    <td className={cellBaseClass}>
-                      <TooltipItem tooltipsText={item.ip || "未知"} position="bottom">
-                        <span>{item.ip || "未知"}</span>
-                      </TooltipItem>
-                    </td>
-                    <td className={cellBaseClass}>{item.total ?? item.pv ?? 0}</td>
-                    <td className={cellBaseClass}>{item.rating ?? 0}</td>
-                    <td className={stickyActionCellClass}>
-                      <div className="flex items-center justify-center gap-3">
-                        <Switcher initialChecked={item.rating} initName={item.url} />
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.url)}
-                          className="rounded-2xl bg-gradient-to-r from-rose-500 to-red-500 px-4 py-2 text-xs font-semibold text-white transition hover:scale-[1.04]"
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </PhotoProvider>
-          </tbody>
-        </table>
-      </div>
+    <PhotoProvider maskOpacity={0.65}>
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        {cards.map((card) => (
+          <div key={card.key} className={`${cardClass} group flex flex-col space-y-4`}>
+            {card.preview}
+            <div className="flex flex-col gap-3">
+              <div className="space-y-1">
+                <TooltipItem tooltipsText={card.name} position="top">
+                  <p className="truncate text-sm font-semibold">{card.name}</p>
+                </TooltipItem>
+                <p className={secondaryTextClass}>{card.previewUrl}</p>
+              </div>
 
-      {modalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8" onClick={handleCloseModal}>
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur" />
-          <div
-            ref={modalRef}
-            className="relative z-10 w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950/90 p-8 shadow-[0_40px_160px_-60px_rgba(14,116,244,0.55)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={handleCloseModal}
-              className="absolute right-5 top-5 h-9 w-9 rounded-full border border-white/20 text-slate-200 transition hover:border-blue-400/70 hover:text-white"
-            >
-              ✕
-            </button>
-            <h3 className="text-lg font-semibold text-white">快速复制链接</h3>
-            <p className="mt-1 text-xs text-slate-400">针对常见发布场景生成不同格式，点击即可复制。</p>
-            <div className="mt-6 space-y-3">
-              {buildLinkOptions(getImgUrl(modalData.url)).map((item) => (
-                <div key={item.label} className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-slate-900/50 p-4 sm:flex-row sm:items-center">
-                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">
-                    {item.label}
-                  </span>
-                  <input
-                    readOnly
-                    value={item.value}
-                    onClick={() => handleCopy(item.value)}
-                    className="flex-1 rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none transition hover:border-blue-400/60"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(item.value)}
-                    className="rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03]"
-                  >
-                    复制
-                  </button>
+              <div className="grid gap-3 text-sm">
+                <div>
+                  <p className={metaLabelClass}>上传时间</p>
+                  <p className={metaValueClass}>{card.time}</p>
                 </div>
-              ))}
+                <div>
+                  <p className={metaLabelClass}>来源地址</p>
+                  <p className={metaValueClass}>
+                    <TooltipItem tooltipsText={card.referer} position="bottom">
+                      <span className="truncate">{card.referer}</span>
+                    </TooltipItem>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <p className={metaLabelClass}>IP</p>
+                    <p className={metaValueClass}>{card.ip}</p>
+                  </div>
+                  <div>
+                    <p className={metaLabelClass}>访问</p>
+                    <p className={metaValueClass}>{card.pv}</p>
+                  </div>
+                  <div>
+                    <p className={metaLabelClass}>评分</p>
+                    <p className={metaValueClass}>{card.rating}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => handleCopy(card.previewUrl, "直链已复制")} className={primaryButtonClass}>
+                  复制直链
+                </button>
+                <button type="button" onClick={() => handleOpen(card.previewUrl)} className={subtleButtonClass}>
+                  打开链接
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(card.linkOptions[1].value, "Markdown 已复制")}
+                  className={subtleButtonClass}
+                >
+                  复制 Markdown
+                </button>
+              </div>
+
+              <div className={`my-2 border-t ${dividerClass}`} />
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className={metaLabelClass}>限制访问</span>
+                  <Switcher initialChecked={card.raw.rating} initName={card.raw.url} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(card.raw.url)}
+                  className="rounded-full bg-gradient-to-r from-rose-500 to-red-500 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_12px_32px_-18px_rgba(244,63,94,0.7)] transition hover:scale-[1.04]"
+                >
+                  删除
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        ))}
+      </div>
+    </PhotoProvider>
   );
 }
