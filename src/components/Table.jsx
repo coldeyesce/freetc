@@ -194,138 +194,88 @@ export default function Table({ data: initialData = [], isDark = true }) {
     );
   }
 
-  const [primaryCard, ...restCards] = cards;
-
-  const renderPreview = (card, sizeClass) => (
-    <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/40 ${sizeClass}`}>
-      {card.previewUrl ? (
-        <PhotoView src={card.previewUrl}>
-          <div className="flex h-full w-full items-center justify-center">
-            {card.kind === "video" ? (
-              <video src={card.previewUrl} className="h-full w-full object-cover" />
-            ) : (
-              <img src={card.previewUrl} alt={card.displayName} className="h-full w-full object-cover" />
-            )}
-          </div>
-        </PhotoView>
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">无预览</div>
-      )}
-    </div>
-  );
-
-  const renderActions = (card) => (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={() => handleCopy(card.previewUrl, "直链已复制")}
-        className={actionButtonClass}
-      >
-        <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
-        复制直链
-      </button>
-      <button
-        type="button"
-        onClick={() => handleCopy(card.linkOptions[1].value, "Markdown 已复制")}
-        className={actionButtonClass}
-      >
-        <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
-        Markdown
-      </button>
-      <button type="button" onClick={() => handleOpen(card.previewUrl)} className={actionButtonClass}>
-        <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
-        打开链接
-      </button>
-      <button type="button" onClick={() => handleDelete(card.raw.url)} className={deleteButtonClass}>
-        <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
-        删除
-      </button>
-    </div>
-  );
-
-  const renderPrimaryCard = (card) => {
-    const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
-    return (
-      <div key={card.key} className={`${cardClass} flex flex-col gap-4`}>
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
-          <div className="flex flex-col items-start gap-2">
-            {renderPreview(card, "h-36 w-56 md:h-44 md:w-72")}
-            <span className={`${badgeClass} gap-1`}>
-              <FontAwesomeIcon icon={kindMeta.icon} className="h-3 w-3" />
-              {kindMeta.label}
-            </span>
-          </div>
-          <div className="flex flex-1 flex-col gap-3">
-            <TooltipItem tooltipsText={card.displayName} position="top">
-              <h3 className="truncate text-base font-semibold">{card.displayName}</h3>
-            </TooltipItem>
-            <p className={`break-all text-xs ${mutedTextClass}`}>{card.previewUrl}</p>
-            <div className="grid gap-3 sm:grid-cols-2 text-xs">
-              <div>
-                <p className={metaLabelClass}>上传时间</p>
-                <p className={metaValueClass}>{card.time}</p>
-              </div>
-              <div>
-                <p className={metaLabelClass}>来源地址</p>
-                <TooltipItem tooltipsText={card.referer} position="bottom">
-                  <p className={`${metaValueClass} truncate`}>{card.referer}</p>
-                </TooltipItem>
-              </div>
-              <div>
-                <p className={metaLabelClass}>IP</p>
-                <p className={metaValueClass}>{card.ip}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        {renderActions(card)}
-      </div>
-    );
-  };
-
-  const renderCompactCard = (card) => {
-    const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
-    return (
-      <div key={card.key} className={`${cardClass} flex flex-col gap-3 md:flex-row md:items-center md:gap-4`}>
-        <div className="flex items-center gap-3 md:w-64">
-          {renderPreview(card, "h-16 w-24")}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <TooltipItem tooltipsText={card.displayName} position="top">
-                <p className="truncate text-sm font-semibold">{card.displayName}</p>
-              </TooltipItem>
-              <span className={`${badgeClass} gap-1`}>
-                <FontAwesomeIcon icon={kindMeta.icon} className="h-3 w-3" />
-                {kindMeta.label}
-              </span>
-            </div>
-            <p className={`truncate ${mutedTextClass}`}>{card.previewUrl}</p>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-[11px]">
-          <span>
-            <span className={metaLabelClass}>时间</span> <span className={metaValueClass}>{card.time}</span>
-          </span>
-          <span>
-            <span className={metaLabelClass}>来源</span>{" "}
-            <TooltipItem tooltipsText={card.referer} position="bottom">
-              <span className={`${metaValueClass} truncate max-w-[140px] inline-block align-middle`}>{card.referer}</span>
-            </TooltipItem>
-          </span>
-          <span>
-            <span className={metaLabelClass}>IP</span> <span className={metaValueClass}>{card.ip}</span>
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">{renderActions(card)}</div>
-      </div>
-    );
-  };
-
   return (
     <PhotoProvider maskOpacity={0.6}>
       <div className="space-y-3">
-        {renderPrimaryCard(primaryCard)}
-        {restCards.map((card) => renderCompactCard(card))}
+        {cards.map((card) => {
+          const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
+          const previewSize = "h-28 w-44 md:h-36 md:w-64";
+          return (
+            <div key={card.key} className={`${cardClass} flex flex-col gap-4`}>
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+                <div className="flex flex-col items-start gap-2">
+                  <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/40 ${previewSize}`}>
+                    {card.previewUrl ? (
+                      <PhotoView src={card.previewUrl}>
+                        <div className="flex h-full w-full items-center justify-center">
+                          {card.kind === "video" ? (
+                            <video src={card.previewUrl} className="h-full w-full object-cover" />
+                          ) : (
+                            <img src={card.previewUrl} alt={card.displayName} className="h-full w-full object-cover" />
+                          )}
+                        </div>
+                      </PhotoView>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">无预览</div>
+                    )}
+                  </div>
+                  <span className={`${badgeClass} gap-1`}>
+                    <FontAwesomeIcon icon={kindMeta.icon} className="h-3 w-3" />
+                    {kindMeta.label}
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col gap-3">
+                  <TooltipItem tooltipsText={card.displayName} position="top">
+                    <h3 className="truncate text-base font-semibold">{card.displayName}</h3>
+                  </TooltipItem>
+                  <p className={`break-all text-xs ${mutedTextClass}`}>{card.previewUrl}</p>
+                  <div className="grid gap-3 text-xs sm:grid-cols-3">
+                    <div>
+                      <p className={metaLabelClass}>上传时间</p>
+                      <p className={metaValueClass}>{card.time}</p>
+                    </div>
+                    <div>
+                      <p className={metaLabelClass}>来源地址</p>
+                      <TooltipItem tooltipsText={card.referer} position="bottom">
+                        <p className={`${metaValueClass} truncate`}>{card.referer}</p>
+                      </TooltipItem>
+                    </div>
+                    <div>
+                      <p className={metaLabelClass}>IP</p>
+                      <p className={metaValueClass}>{card.ip}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(card.previewUrl, "直链已复制")}
+                  className={actionButtonClass}
+                >
+                  <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
+                  复制直链
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(card.linkOptions[1].value, "Markdown 已复制")}
+                  className={actionButtonClass}
+                >
+                  <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
+                  Markdown
+                </button>
+                <button type="button" onClick={() => handleOpen(card.previewUrl)} className={actionButtonClass}>
+                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
+                  打开链接
+                </button>
+                <button type="button" onClick={() => handleDelete(card.raw.url)} className={deleteButtonClass}>
+                  <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
+                  删除
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </PhotoProvider>
   );

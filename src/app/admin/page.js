@@ -21,6 +21,8 @@ const REQUEST_HEADERS = {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
 };
 
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
 export default function Admin() {
   const [listData, setListData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,6 +33,7 @@ export default function Admin() {
   const [jumpPage, setJumpPage] = useState("1");
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState("dark");
+  const [pageSize, setPageSize] = useState(5);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -68,6 +71,9 @@ export default function Admin() {
   const badgeClass = isDark
     ? "rounded-full bg-blue-500/20 px-4 py-1 text-xs font-medium text-blue-200"
     : "rounded-full bg-blue-100 px-4 py-1 text-xs font-medium text-blue-600";
+  const selectClass = isDark
+    ? "rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-400/70 focus:outline-none"
+    : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-blue-500/60 focus:outline-none";
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -82,6 +88,7 @@ export default function Admin() {
         body: JSON.stringify({
           page: Math.max(page - 1, 0),
           query,
+          size: pageSize,
         }),
       });
 
@@ -99,14 +106,14 @@ export default function Admin() {
 
       const total = Number(data.total) || 0;
       setTotalItems(total);
-      const computedPages = Math.max(Math.ceil(total / 10), 1);
+      const computedPages = Math.max(Math.ceil(total / pageSize), 1);
       setTotalPages(computedPages);
     } catch (error) {
       toast.error(error.message || "获取数据失败");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageSize]);
 
   useEffect(() => {
     fetchList(currentPage, searchQuery);
@@ -145,6 +152,12 @@ export default function Admin() {
     setCurrentPage(1);
   };
 
+  const handlePageSizeChange = (event) => {
+    const value = Number(event.target.value);
+    setPageSize(value);
+    setCurrentPage(1);
+  };
+
   const stats = useMemo(
     () => [
       {
@@ -155,7 +168,7 @@ export default function Admin() {
       {
         label: "当前页码",
         value: `${currentPage}/${totalPages}`,
-        description: "每页展示 10 条",
+        description: `每页展示 ${pageSize} 条`,
       },
       {
         label: "筛选状态",
@@ -163,7 +176,7 @@ export default function Admin() {
         description: searchQuery ? "当前关键字" : "显示全部数据",
       },
     ],
-    [currentPage, totalItems, totalPages, searchQuery],
+    [currentPage, pageSize, totalItems, totalPages, searchQuery],
   );
 
   return (
@@ -175,7 +188,7 @@ export default function Admin() {
           <div className={`absolute bottom-28 left-12 h-[240px] w-[240px] rounded-full ${heroGlowLeft} blur-[150px]`} />
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10">
+        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 pt-2 pb-10">
           <header
             className={`rounded-[32px] border ${surfaceClass} p-6 ${
               isDark
@@ -249,6 +262,16 @@ export default function Admin() {
                   </button>
                 </div>
               </form>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={mutedTextClass}>每页显示</span>
+                <select value={pageSize} onChange={handlePageSizeChange} className={selectClass}>
+                  {PAGE_SIZE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="mt-6">
