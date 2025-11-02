@@ -50,6 +50,7 @@ const VIDEO_EXTENSIONS = [
 
 let tagsColumnEnsured = false;
 let quotaTableEnsured = false;
+let quotaConfigEnsured = false;
 
 async function ensureTagsColumn(db) {
   if (tagsColumnEnsured) return;
@@ -81,6 +82,46 @@ async function ensureQuotaTable(db) {
   } finally {
     quotaTableEnsured = true;
   }
+}
+
+async function ensureQuotaConfigTable(db) {
+  if (quotaConfigEnsured) return;
+  try {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS quota_config (
+          key TEXT PRIMARY KEY,
+          value INTEGER NOT NULL DEFAULT 0
+        )`,
+      )
+      .run();
+  } finally {
+    quotaConfigEnsured = true;
+  }
+}
+
+const toSafeInteger = (value, fallback = 0) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return fallback;
+  return parsed;
+};
+
+async function getQuotaLimits(db) {
+  await ensureQuotaConfigTable(db);
+  const defaults = {
+    anonymous: 1,
+    user: 15,
+  };
+  const result = await db.prepare("SELECT key, value FROM quota_config").all();
+  (result?.results ?? []).forEach(({ key, value }) => {
+    if (key === "anonymous_limit") {
+      defaults.anonymous = toSafeInteger(value, 1);
+    }
+    if (key === "user_limit") {
+      defaults.user = toSafeInteger(value, 15);
+    }
+  });
+  return defaults;
 }
 
 const normaliseTags = (customTags, kindTag) => {
@@ -163,6 +204,9 @@ export async function POST(request) {
 
   if (!isAdmin && env.IMG) {
     await ensureQuotaTable(env.IMG);
+    const limits = await getQuotaLimits(env.IMG);
+    const anonymousLimit = limits.anonymous ?? 1;
+    const userLimit = limits.user ?? 15;
 
     if (!isRegular && fileEntries.length > 1) {
       return Response.json(
@@ -183,11 +227,11 @@ export async function POST(request) {
         .prepare("SELECT count FROM upload_quota WHERE identity = ? AND scope = 'lifetime' AND day = 'all'")
         .bind(anonymousIdentity)
         .first();
-      if (quota && Number(quota.count) >= 1) {
+      if (anonymousLimit > 0 && quota && Number(quota.count) >= anonymousLimit) {
         return Response.json(
           {
             status: 429,
-            message: "未登录用户仅可体验一次上传，请登录后继续使用。",
+            message: `未登录访客当前最多可上传 ${anonymousLimit} 次，请登录后继续使用。`,
             success: false,
           },
           {
@@ -201,11 +245,11 @@ export async function POST(request) {
         .prepare("SELECT count FROM upload_quota WHERE identity = ? AND scope = 'daily' AND day = ?")
         .bind(regularIdentity, dayKey)
         .first();
-      if (quota && Number(quota.count) >= 15) {
+      if (userLimit > 0 && quota && Number(quota.count) >= userLimit) {
         return Response.json(
           {
             status: 429,
-            message: "今日上传次数已达上限，请明天再试或提升权限。",
+            message: `今日上传次数已达上限（${userLimit} 次），请明天再试或提升权限。`,
             success: false,
           },
           {

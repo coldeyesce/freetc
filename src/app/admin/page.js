@@ -6,7 +6,7 @@ import { ToastContainer, toast } from "react-toastify";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowRightArrowLeft,
-  faArrowsRotate,
+  faChartLine,
   faCircleHalfStroke,
   faGaugeHigh,
   faHouse,
@@ -42,8 +42,6 @@ export default function Admin() {
   const [activeTag, setActiveTag] = useState("all");
   const [newTag, setNewTag] = useState("");
   const [isAddingTag, setIsAddingTag] = useState(false);
-  const [quotaLoading, setQuotaLoading] = useState(false);
-  const [quotaData, setQuotaData] = useState(null);
   const tagInputRef = useRef(null);
 
   useEffect(() => {
@@ -112,43 +110,6 @@ export default function Admin() {
     ? "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white shadow hover:bg-rose-400"
     : "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white shadow hover:bg-rose-400";
   const customTagButtonClass = `${tagButtonClass} pr-6`;
-  const monitorCardClass = isDark
-    ? "rounded-[20px] border border-white/12 bg-white/8 p-4 backdrop-blur"
-    : "rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm";
-  const monitorValueClass = isDark ? "text-xl font-semibold text-white" : "text-xl font-semibold text-slate-800";
-  const monitorChipClass = isDark
-    ? "inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] text-slate-200"
-    : "inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-600";
-  const monitorHighlightChipClass = isDark
-    ? "inline-flex items-center rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11px] text-blue-100"
-    : "inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] text-blue-600";
-  const recentItemClass = isDark
-    ? "rounded-2xl border border-white/12 bg-white/6 p-3"
-    : "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm";
-  const getUsageTone = (current, limit) => {
-    if (!limit || limit <= 0) {
-      return isDark ? "text-slate-200" : "text-slate-700";
-    }
-    const ratio = current / limit;
-    if (ratio >= 1) return isDark ? "text-rose-300" : "text-rose-500";
-    if (ratio >= 0.75) return isDark ? "text-amber-200" : "text-amber-500";
-    return isDark ? "text-emerald-200" : "text-emerald-600";
-  };
-  const roleLabelMap = {
-    anonymous: "游客",
-    user: "用户",
-    admin: "管理员",
-    unknown: "未知",
-  };
-  const formatCount = (value) => Number(value ?? 0).toLocaleString("zh-CN");
-  const formatRecentDay = (value) => {
-    if (typeof value !== "string" || value.length === 0) return "--";
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) {
-      return `${match[2]}/${match[3]}`;
-    }
-    return value;
-  };
   const getTagLabel = (tag) => {
     switch (tag) {
       case "all":
@@ -192,32 +153,9 @@ export default function Admin() {
     }
   }, []);
 
-  const fetchQuota = useCallback(async () => {
-    setQuotaLoading(true);
-    try {
-      const response = await fetch("/api/admin/quota", {
-        method: "GET",
-        headers: REQUEST_HEADERS,
-      });
-      const data = await response.json();
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.message || "加载配额数据失败");
-      }
-      setQuotaData(data.data ?? null);
-    } catch (error) {
-      toast.error(error.message || "加载配额数据失败");
-    } finally {
-      setQuotaLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
-
-  useEffect(() => {
-    fetchQuota();
-  }, [fetchQuota]);
 
   const fetchList = useCallback(async (page, query) => {
     setLoading(true);
@@ -424,9 +362,8 @@ export default function Admin() {
       } else {
         void fetchList(targetPage, searchQuery);
       }
-      void fetchQuota();
     },
-    [currentPage, fetchList, fetchQuota, pageSize, searchQuery, totalItems],
+    [currentPage, fetchList, pageSize, searchQuery, totalItems],
   );
 
   const customTags = useMemo(
@@ -470,35 +407,6 @@ export default function Admin() {
     [activeTag, currentPage, currentTagLabel, pageSize, searchQuery, totalItems, totalPages],
   );
 
-  const todayQuota = quotaData?.today ?? {};
-  const quotaCards = [
-    {
-      label: "今日上传总数",
-      value: formatCount(todayQuota.total),
-      valueClass: "",
-      description: `游客 ${formatCount(todayQuota.anonymous)} · 用户 ${formatCount(todayQuota.user)} · 管理员 ${formatCount(todayQuota.admin)}`,
-    },
-    {
-      label: "游客今日配额",
-      value: `${formatCount(todayQuota.anonymous)} / ${todayQuota.limitAnonymous ?? 1}`,
-      valueClass: getUsageTone(Number(todayQuota.anonymous ?? 0), Number(todayQuota.limitAnonymous ?? 1)),
-      description: "未登录访客每日上限",
-    },
-    {
-      label: "注册用户今日配额",
-      value: `${formatCount(todayQuota.user)} / ${todayQuota.limitUser ?? 15}`,
-      valueClass: getUsageTone(Number(todayQuota.user ?? 0), Number(todayQuota.limitUser ?? 0)),
-      description: "会员每日上限",
-    },
-    {
-      label: "游客累计上传",
-      value: formatCount(quotaData?.lifetimeAnonymous),
-      valueClass: isDark ? "text-sky-200" : "text-sky-600",
-      description: "自上线以来的游客上传量",
-    },
-  ];
-  const recentQuota = Array.isArray(quotaData?.recent) ? quotaData.recent.slice(0, 6) : [];
-
   return (
     <main className={`min-h-screen w-full overflow-x-hidden ${pageBackground}`}>
       <div className="relative flex min-h-screen flex-col">
@@ -534,6 +442,10 @@ export default function Admin() {
                   <FontAwesomeIcon icon={faCircleHalfStroke} className="h-4 w-4" />
                   {`切换为${isDark ? "浅色" : "深色"}主题`}
                 </button>
+                <Link href="/admin/monitor" className={subtleButtonClass}>
+                  <FontAwesomeIcon icon={faChartLine} className="h-4 w-4" />
+                  查看监控面板
+                </Link>
                 <Link href="/" className={subtleButtonClass}>
                   <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
                   返回首页
@@ -554,86 +466,6 @@ export default function Admin() {
               ))}
             </div>
           </header>
-
-          <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">上传监控面板</h2>
-                <p className={`text-xs ${mutedTextClass}`}>实时了解游客与登录用户的上传额度与趋势。</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => fetchQuota()}
-                  className={`${subtleButtonClass} disabled:cursor-not-allowed disabled:opacity-40`}
-                  disabled={quotaLoading}
-                >
-                  <FontAwesomeIcon icon={faArrowsRotate} className={`h-4 w-4 ${quotaLoading ? "animate-spin" : ""}`} />
-                  刷新数据
-                </button>
-              </div>
-            </div>
-            <div className={`mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4 ${quotaLoading && quotaData ? "opacity-70" : ""}`}>
-              {quotaLoading && !quotaData
-                ? Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className={`${monitorCardClass} animate-pulse`}>
-                      <div className={`${isDark ? "bg-white/10" : "bg-slate-200/70"} h-3 w-20 rounded-full`} />
-                      <div className={`${isDark ? "bg-white/20" : "bg-slate-200/90"} mt-4 h-6 w-24 rounded-full`} />
-                      <div className={`${isDark ? "bg-white/10" : "bg-slate-200/60"} mt-3 h-3 w-32 rounded-full`} />
-                    </div>
-                  ))
-                : quotaCards.map((card) => (
-                    <div key={card.label} className={monitorCardClass}>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-300/80">{card.label}</p>
-                      <p className={`${monitorValueClass} ${card.valueClass || ""} mt-2`}>{card.value}</p>
-                      <p className={`mt-2 text-[11px] ${mutedTextClass}`}>{card.description}</p>
-                    </div>
-                  ))}
-            </div>
-            <div className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300/80">14 日趋势</p>
-              {quotaLoading && !recentQuota.length ? (
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className={`${recentItemClass} animate-pulse`}>
-                      <div className={`${isDark ? "bg-white/10" : "bg-slate-200/70"} h-3 w-24 rounded-full`} />
-                      <div className={`${isDark ? "bg-white/10" : "bg-slate-200/60"} mt-3 h-3 w-32 rounded-full`} />
-                    </div>
-                  ))}
-                </div>
-              ) : recentQuota.length === 0 ? (
-                <div
-                  className={`mt-3 rounded-2xl border ${
-                    isDark ? "border-white/12 bg-white/6 text-slate-300" : "border-slate-200 bg-white text-slate-600"
-                  } p-4 text-xs`}
-                >
-                  暂无最近趋势数据。
-                </div>
-              ) : (
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {recentQuota.map((item) => (
-                    <div key={item.day} className={recentItemClass}>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium">{formatRecentDay(item.day)}</span>
-                        <span className="text-sm font-semibold">{formatCount(item.total)} 次</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {(item.records || []).map((record) => (
-                          <span
-                            key={`${item.day}-${record.role}`}
-                            className={record.role === "anonymous" ? monitorHighlightChipClass : monitorChipClass}
-                          >
-                            {`${roleLabelMap[record.role] ?? roleLabelMap.unknown} ${formatCount(record.total)}`}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
           <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
             <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex w-full flex-col gap-3">
