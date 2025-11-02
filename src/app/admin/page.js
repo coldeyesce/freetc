@@ -185,7 +185,7 @@ export default function Admin() {
                 <p className="text-xs uppercase tracking-[0.3em] text-blue-300/90">Admin Console</p>
                 <h1 className="text-2xl font-semibold tracking-wide">素材管理后台</h1>
                 <p className={`text-xs ${mutedTextClass}`}>
-                  快速检索、审阅与维护上传的文件，保持平台高效整洁。与首页主题同步，日夜都能舒适管理。
+                  快速检索、审阅与维护上传的文件，保持平台高效整洁。主题与首页同步，在明暗之间自由切换。
                 </p>
               </div>
             </div>
@@ -198,11 +198,7 @@ export default function Admin() {
                 <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
                 返回首页
               </Link>
-              <button
-                type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className={primaryButtonClass}
-              >
+              <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className={primaryButtonClass}>
                 <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
                 退出登录
               </button>
@@ -211,10 +207,7 @@ export default function Admin() {
 
           <section className="grid gap-4 sm:grid-cols-3">
             {stats.map((item) => (
-              <div
-                key={item.label}
-                className={`flex flex-col gap-2 rounded-[24px] border ${surfaceClass} p-5`}
-              >
+              <div key={item.label} className={`flex flex-col gap-2 rounded-[24px] border ${surfaceClass} p-5`}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-300/80">{item.label}</p>
                 <p className="text-2xl font-semibold">{item.value}</p>
                 <p className={`text-xs ${mutedTextClass}`}>{item.description}</p>
