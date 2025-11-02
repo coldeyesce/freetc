@@ -9,6 +9,19 @@ const corsHeaders = {
 
 export const runtime = "edge";
 
+const RESERVED_TAGS = ["all", "image", "video", "file"];
+
+async function ensureTagRegistry(db) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS taglist (
+        name TEXT PRIMARY KEY,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+    )
+    .run();
+}
+
 export async function GET() {
   const { env } = getRequestContext();
 
@@ -27,8 +40,20 @@ export async function GET() {
   }
 
   try {
-    const { results } = await env.IMG.prepare("SELECT tags FROM imginfo").all();
+    await ensureTagRegistry(env.IMG);
+
+    const baseTags = new Set(["image", "video", "file"]);
     const tagSet = new Set(["image", "video", "file"]);
+
+    const customQuery = await env.IMG.prepare("SELECT name FROM taglist ORDER BY name COLLATE NOCASE").all();
+    customQuery?.results?.forEach(({ name }) => {
+      if (!name) return;
+      const trimmed = String(name).trim();
+      if (!trimmed || RESERVED_TAGS.includes(trimmed)) return;
+      tagSet.add(trimmed);
+    });
+
+    const { results } = await env.IMG.prepare("SELECT tags FROM imginfo").all();
 
     results?.forEach(({ tags }) => {
       if (!tags) return;
@@ -36,13 +61,16 @@ export async function GET() {
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean)
-        .forEach((tag) => tagSet.add(tag));
+        .forEach((tag) => {
+          if (!tag || RESERVED_TAGS.includes(tag)) return;
+          tagSet.add(tag);
+        });
     });
 
     return Response.json(
       {
         success: true,
-        tags: Array.from(tagSet).sort(),
+        tags: Array.from(new Set([...baseTags, ...tagSet])).sort((a, b) => a.localeCompare(b, "zh-CN")),
       },
       {
         status: 200,

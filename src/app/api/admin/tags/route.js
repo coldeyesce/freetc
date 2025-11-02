@@ -48,6 +48,7 @@ const VIDEO_EXTENSIONS = [
 ];
 
 let tagsColumnEnsured = false;
+let tagRegistryEnsured = false;
 
 async function ensureTagsColumn(db) {
   if (tagsColumnEnsured) return;
@@ -57,6 +58,22 @@ async function ensureTagsColumn(db) {
     // ignore if already exists
   } finally {
     tagsColumnEnsured = true;
+  }
+}
+
+async function ensureTagRegistry(db) {
+  if (tagRegistryEnsured) return;
+  try {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS taglist (
+          name TEXT PRIMARY KEY,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+      )
+      .run();
+  } finally {
+    tagRegistryEnsured = true;
   }
 }
 
@@ -119,6 +136,8 @@ export async function PATCH(request) {
   }
 
   await ensureTagsColumn(env.IMG);
+  await ensureTagRegistry(env.IMG);
+  await ensureTagRegistry(env.IMG);
 
   let body;
   try {
@@ -176,6 +195,11 @@ export async function PATCH(request) {
     const uniqueTags = Array.from(new Set(normalizedTags));
     const storageString = buildStorageString(uniqueTags);
 
+    for (const tag of uniqueTags) {
+      if (!tag || RESERVED_TAGS.has(tag)) continue;
+      await env.IMG.prepare("INSERT OR IGNORE INTO taglist (name) VALUES (?)").bind(tag).run();
+    }
+
     const result = await env.IMG.prepare("UPDATE imginfo SET tags = ? WHERE url = ?").bind(storageString, url).run();
     if (!result?.success) {
       return Response.json(
@@ -217,6 +241,93 @@ export async function PATCH(request) {
 
 
 
+export async function POST(request) {
+  const { env } = getRequestContext();
+
+  if (!env?.IMG) {
+    return Response.json(
+      {
+        success: false,
+        message: "IMG 数据库未配置",
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  await ensureTagRegistry(env.IMG);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return Response.json(
+      {
+        success: false,
+        message: "请求体需要为 JSON",
+      },
+      {
+        status: 400,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  const tag = sanitizeTag(body?.tag);
+  if (!tag) {
+    return Response.json(
+      {
+        success: false,
+        message: "无效的标签",
+      },
+      {
+        status: 400,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  if (RESERVED_TAGS.has(tag)) {
+    return Response.json(
+      {
+        success: true,
+        tag,
+        reserved: true,
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  try {
+    await env.IMG.prepare("INSERT OR IGNORE INTO taglist (name) VALUES (?)").bind(tag).run();
+    return Response.json(
+      {
+        success: true,
+        tag,
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      },
+    );
+  } catch (error) {
+    return Response.json(
+      {
+        success: false,
+        message: error.message,
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
+  }
+}
 export async function DELETE(request) {
   const { env } = getRequestContext();
 
@@ -314,6 +425,8 @@ export async function DELETE(request) {
       const updated = buildStorageString(unique);
       await env.IMG.prepare("UPDATE imginfo SET tags = ? WHERE url = ?").bind(updated, row.url).run();
     }
+
+    await env.IMG.prepare("DELETE FROM taglist WHERE name = ?").bind(rawTag).run();
 
     return Response.json(
       {

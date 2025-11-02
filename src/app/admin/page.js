@@ -293,19 +293,33 @@ export default function Admin() {
     setNewTag("");
   };
 
-  const handleAddTagFilter = (event) => {
+  const handleAddTagFilter = async (event) => {
     event.preventDefault();
     const value = newTag.trim();
     if (!value) return;
-    if (PRIMARY_TAGS.includes(value)) {
-      setActiveTag(value);
-    } else {
+
+    try {
+      if (!PRIMARY_TAGS.includes(value)) {
+        const response = await fetch("/api/admin/tags", {
+          method: "POST",
+          headers: REQUEST_HEADERS,
+          body: JSON.stringify({ tag: value }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data?.success) {
+          throw new Error(data?.message || "新增标签失败");
+        }
+      }
+
       registerAvailableTag(value);
+      await fetchTags();
       setActiveTag(value);
+      setNewTag("");
+      setIsAddingTag(false);
+      setCurrentPage(1);
+    } catch (error) {
+      toast.error(error.message || "新增标签失败");
     }
-    setNewTag("");
-    setIsAddingTag(false);
-    setCurrentPage(1);
   };
 
   const handleUpdateItemTags = useCallback(
