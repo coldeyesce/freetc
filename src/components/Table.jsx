@@ -238,6 +238,9 @@ export default function Table({
         setData((prev) =>
           prev.map((item) => (item.url === card.raw.url ? { ...item, tags: storageString } : item)),
         );
+        if (Array.isArray(result?.tags) && typeof onRegisterTag === "function") {
+          result.tags.forEach(onRegisterTag);
+        }
         toast.success("标签已更新");
         cancelEdit();
       } catch (error) {
@@ -246,7 +249,7 @@ export default function Table({
         setSavingKey(null);
       }
     },
-    [cancelEdit, draftTags, onUpdateTags],
+    [cancelEdit, draftTags, onRegisterTag, onUpdateTags],
   );
 
   const deleteItem = async (name) => {

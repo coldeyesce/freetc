@@ -1,5 +1,5 @@
 ﻿"use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { ToastContainer, toast } from "react-toastify";
@@ -10,7 +10,9 @@ import {
   faGaugeHigh,
   faHouse,
   faMagnifyingGlass,
+  faPlus,
   faRightFromBracket,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import Table from "@/components/Table";
 import LoadingOverlay from "@/components/LoadingOverlay";
@@ -38,6 +40,8 @@ export default function Admin() {
   const [availableTags, setAvailableTags] = useState(PRIMARY_TAGS);
   const [activeTag, setActiveTag] = useState("all");
   const [newTag, setNewTag] = useState("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const tagInputRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -54,6 +58,11 @@ export default function Admin() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("upload-theme", theme);
   }, [theme]);
+  useEffect(() => {
+    if (isAddingTag && tagInputRef.current) {
+      tagInputRef.current.focus();
+    }
+  }, [isAddingTag]);
 
   const isDark = theme === "dark";
   const pageBackground = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-900";
@@ -90,6 +99,16 @@ export default function Admin() {
   const tagAddButtonClass = isDark
     ? "rounded-full bg-blue-500/80 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-400/90"
     : "rounded-full bg-blue-500 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600";
+  const tagCancelButtonClass = isDark
+    ? "rounded-full border border-white/15 px-3 py-1.5 text-xs text-slate-200 transition hover:border-blue-400/70"
+    : "rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-700 transition hover:border-blue-500/60";
+  const addTagTriggerClass = isDark
+    ? "flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-white/25 bg-white/8 text-slate-200 transition hover:border-blue-400/70 hover:text-blue-100"
+    : "flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-slate-700 transition hover:border-blue-500/60 hover:text-blue-600";
+  const tagRemoveButtonClass = isDark
+    ? "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white shadow hover:bg-rose-400"
+    : "absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white shadow hover:bg-rose-400";
+  const customTagButtonClass = `${tagButtonClass} pr-6`;
   const getTagLabel = (tag) => {
     switch (tag) {
       case "all":
@@ -206,10 +225,51 @@ export default function Admin() {
     setSearchQuery(searchInput.trim());
   };
 
+  const handleRemoveTag = useCallback(
+    async (tag) => {
+      if (!tag || PRIMARY_TAGS.includes(tag)) return;
+      try {
+        const request = JSON.stringify({ tag, force: false });
+        let response = await fetch("/api/admin/tags", {
+          method: "DELETE",
+          headers: REQUEST_HEADERS,
+          body: request,
+        });
+        let data = await response.json();
+        if (response.status === 409 && data?.requireConfirmation) {
+          const count = data?.count ?? 0;
+          const confirmed = window.confirm(`标签 "${tag}" 已关联 ${count} 个文件，确认删除吗？`);
+          if (!confirmed) return;
+          response = await fetch("/api/admin/tags", {
+            method: "DELETE",
+            headers: REQUEST_HEADERS,
+            body: JSON.stringify({ tag, force: true }),
+          });
+          data = await response.json();
+        }
+        if (!response.ok || !data?.success) {
+          throw new Error(data?.message || "删除标签失败");
+        }
+        toast.success("标签已删除");
+        setAvailableTags((prev) => prev.filter((item) => item !== tag));
+        if (activeTag === tag) {
+          setActiveTag("all");
+        }
+        setCurrentPage(1);
+        await fetchList(1, searchQuery);
+      } catch (error) {
+        toast.error(error.message || "删除标签失败");
+      }
+    },
+    [activeTag, fetchList, searchQuery],
+  );
+
   const handleResetSearch = () => {
     setSearchInput("");
     setSearchQuery("");
     setActiveTag("all");
+    setNewTag("");
+    setIsAddingTag(false);
     setCurrentPage(1);
   };
 
@@ -223,13 +283,28 @@ export default function Admin() {
     setCurrentPage(1);
   };
 
+  const handleStartAddTag = () => {
+    setNewTag("");
+    setIsAddingTag(true);
+  };
+
+  const handleCancelAddTag = () => {
+    setIsAddingTag(false);
+    setNewTag("");
+  };
+
   const handleAddTagFilter = (event) => {
     event.preventDefault();
     const value = newTag.trim();
     if (!value) return;
-    registerAvailableTag(value);
-    setActiveTag(value);
+    if (PRIMARY_TAGS.includes(value)) {
+      setActiveTag(value);
+    } else {
+      registerAvailableTag(value);
+      setActiveTag(value);
+    }
     setNewTag("");
+    setIsAddingTag(false);
     setCurrentPage(1);
   };
 
@@ -257,6 +332,10 @@ export default function Admin() {
     [fetchTags, registerAvailableTag],
   );
 
+  const customTags = useMemo(
+    () => availableTags.filter((tag) => !PRIMARY_TAGS.includes(tag)),
+    [availableTags],
+  );
   const currentTagLabel = getTagLabel(activeTag);
 
   const stats = useMemo(
@@ -378,7 +457,7 @@ export default function Admin() {
                     </button>
                   </div>
                 </form>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     {PRIMARY_TAGS.map((tag) => {
                       const isActive = activeTag === tag;
@@ -393,33 +472,57 @@ export default function Admin() {
                         </button>
                       );
                     })}
-                    {availableTags
-                      .filter((tag) => !PRIMARY_TAGS.includes(tag))
-                      .map((tag) => {
-                        const isActive = activeTag === tag;
-                        return (
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {customTags.map((tag) => {
+                      const isActive = activeTag === tag;
+                      return (
+                        <div key={tag} className="relative">
                           <button
                             type="button"
-                            key={tag}
                             onClick={() => handleTagSelect(tag)}
-                            className={`${tagButtonClass} ${isActive ? tagButtonActiveClass : ""}`}
+                            className={`${customTagButtonClass} ${isActive ? tagButtonActiveClass : ""}`}
                           >
                             {getTagLabel(tag)}
                           </button>
-                        );
-                      })}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className={tagRemoveButtonClass}
+                            aria-label={`删除标签 ${tag}`}
+                          >
+                            <FontAwesomeIcon icon={faXmark} className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {isAddingTag ? (
+                      <form onSubmit={handleAddTagFilter} className="flex items-center gap-2">
+                        <input
+                          ref={tagInputRef}
+                          value={newTag}
+                          onChange={(event) => setNewTag(event.target.value)}
+                          placeholder="新增标签并立即筛选"
+                          className={tagInputClass}
+                        />
+                        <button type="submit" className={tagAddButtonClass} disabled={!newTag.trim()}>
+                          确认
+                        </button>
+                        <button type="button" onClick={handleCancelAddTag} className={tagCancelButtonClass}>
+                          取消
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStartAddTag}
+                        className={addTagTriggerClass}
+                        aria-label="新增标签"
+                      >
+                        <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
-                  <form onSubmit={handleAddTagFilter} className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={newTag}
-                      onChange={(event) => setNewTag(event.target.value)}
-                      placeholder="新增标签并立即筛选"
-                      className={tagInputClass}
-                    />
-                    <button type="submit" className={tagAddButtonClass}>
-                      添加并筛选
-                    </button>
-                  </form>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -503,6 +606,4 @@ export default function Admin() {
     </main>
   );
 }
-
-
 

@@ -98,6 +98,8 @@ const detectKindFromUrl = (url) => {
   return "file";
 };
 
+const RESERVED_TAGS = new Set(["all", "image", "video", "file"]);
+
 const buildStorageString = (tags) => (tags.length > 0 ? `,${tags.join(",")},` : "");
 
 export async function PATCH(request) {
@@ -214,3 +216,126 @@ export async function PATCH(request) {
 }
 
 
+
+export async function DELETE(request) {
+  const { env } = getRequestContext();
+
+  if (!env?.IMG) {
+    return Response.json(
+      {
+        success: false,
+        message: "IMG 数据库未配置",
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  await ensureTagsColumn(env.IMG);
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch (error) {
+    return Response.json(
+      {
+        success: false,
+        message: "请求体需要为 JSON",
+      },
+      {
+        status: 400,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  const rawTag = sanitizeTag(payload?.tag);
+  const force = Boolean(payload?.force);
+
+  if (!rawTag) {
+    return Response.json(
+      {
+        success: false,
+        message: "无效的标签",
+      },
+      {
+        status: 400,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  if (RESERVED_TAGS.has(rawTag)) {
+    return Response.json(
+      {
+        success: false,
+        message: "系统默认标签不可删除",
+      },
+      {
+        status: 400,
+        headers: corsHeaders,
+      },
+    );
+  }
+
+  try {
+    const pattern = `%,${rawTag},%`;
+    const { results } = await env.IMG.prepare("SELECT url, tags FROM imginfo WHERE tags LIKE ?").bind(pattern).all();
+    const rows = Array.isArray(results) ? results : [];
+    const count = rows.length;
+
+    if (count > 0 && !force) {
+      return Response.json(
+        {
+          success: false,
+          requireConfirmation: true,
+          count,
+        },
+        {
+          status: 409,
+          headers: corsHeaders,
+        },
+      );
+    }
+
+    for (const row of rows) {
+      const parts = String(row.tags || "")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .filter((tag) => tag !== rawTag);
+      const detectedKind = detectKindFromUrl(row.url);
+      if (detectedKind && !parts.includes(detectedKind)) {
+        parts.push(detectedKind);
+      }
+      const unique = Array.from(new Set(parts));
+      const updated = buildStorageString(unique);
+      await env.IMG.prepare("UPDATE imginfo SET tags = ? WHERE url = ?").bind(updated, row.url).run();
+    }
+
+    return Response.json(
+      {
+        success: true,
+        removed: rawTag,
+        affected: count,
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      },
+    );
+  } catch (error) {
+    return Response.json(
+      {
+        success: false,
+        message: error.message,
+      },
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
+  }
+}
