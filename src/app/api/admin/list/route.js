@@ -1,4 +1,4 @@
-import { getRequestContext } from "@cloudflare/next-on-pages";
+﻿import { getRequestContext } from "@cloudflare/next-on-pages";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,6 +6,18 @@ const corsHeaders = {
   "Access-Control-Max-Age": "86400",
   "Content-Type": "application/json",
 };
+
+let tagsColumnEnsured = false;
+async function ensureTagsColumn(db) {
+  if (tagsColumnEnsured) return;
+  try {
+    await db.prepare("ALTER TABLE imginfo ADD COLUMN tags TEXT DEFAULT ''").run();
+  } catch (error) {
+    // ignore if column exists
+  } finally {
+    tagsColumnEnsured = true;
+  }
+}
 
 export const runtime = "edge";
 
@@ -26,43 +38,55 @@ export async function POST(request) {
     );
   }
 
+  await ensureTagsColumn(env.IMG);
+
   try {
-    let { page = 0, query = "", size = 5 } = await request.json();
+    let { page = 0, query = "", size = 5, tag = "" } = await request.json();
     const pageIndex = Number(page) || 0;
     const pageSize = Math.min(Math.max(Number(size) || 5, 1), 50);
     const offset = pageIndex * pageSize;
+    const tagValue = (tag || "").trim();
 
-    let results;
-    let total;
+    const conditions = [];
+    const params = [];
 
     if (query) {
-      const likeValue = `%${query}%`;
-      const listStmt = env.IMG.prepare(
-        "SELECT * FROM imginfo WHERE url LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?",
-      ).bind(likeValue, pageSize, offset);
-      const totalStmt = env.IMG.prepare(
-        "SELECT COUNT(*) as total FROM imginfo WHERE url LIKE ?",
-      ).bind(likeValue);
-      ({ results } = await listStmt.all());
-      total = await totalStmt.first();
-    } else {
-      const listStmt = env.IMG.prepare(
-        "SELECT * FROM imginfo ORDER BY id DESC LIMIT ? OFFSET ?",
-      ).bind(pageSize, offset);
-      const totalStmt = env.IMG.prepare("SELECT COUNT(*) as total FROM imginfo");
-      ({ results } = await listStmt.all());
-      total = await totalStmt.first();
+      conditions.push("url LIKE ?");
+      params.push(`%${query}%`);
     }
 
-    return Response.json({
-      code: 200,
-      success: true,
-      message: "success",
-      data: results,
-      page: pageIndex,
-      total: total?.total ?? 0,
-      size: pageSize,
-    });
+    if (tagValue) {
+      conditions.push("tags LIKE ?");
+      params.push(`%,${tagValue},%`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const listSql = `SELECT * FROM imginfo ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
+    const totalSql = `SELECT COUNT(*) as total FROM imginfo ${whereClause}`;
+
+    const listParams = [...params, pageSize, offset];
+    const listStmt = env.IMG.prepare(listSql).bind(...listParams);
+    const { results } = await listStmt.all();
+
+    const totalStmt = env.IMG.prepare(totalSql).bind(...params);
+    const totalRow = await totalStmt.first();
+
+    return Response.json(
+      {
+        code: 200,
+        success: true,
+        message: "success",
+        data: results,
+        page: pageIndex,
+        total: totalRow?.total ?? 0,
+        size: pageSize,
+      },
+      {
+        status: 200,
+        headers: corsHeaders,
+      },
+    );
   } catch (error) {
     return Response.json(
       {
@@ -77,3 +101,4 @@ export async function POST(request) {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -34,6 +34,9 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [pageSize, setPageSize] = useState(5);
+  const [availableTags, setAvailableTags] = useState(["all", "image", "video", "file"]);
+  const [activeTag, setActiveTag] = useState("all");
+  const [newTag, setNewTag] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -74,10 +77,43 @@ export default function Admin() {
   const selectClass = isDark
     ? "rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-400/70 focus:outline-none"
     : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-blue-500/60 focus:outline-none";
+  const getTagLabel = (tag) => {
+    switch (tag) {
+      case "all":
+        return "全部";
+      case "image":
+        return "图片";
+      case "video":
+        return "视频";
+      case "file":
+        return "文件";
+      default:
+        return tag;
+    }
+  };
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
+
+  const fetchTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.tags)) {
+        const base = new Set(["all", "image", "video", "file"]);
+        data.tags.forEach((tag) => base.add(tag));
+        setAvailableTags(Array.from(base));
+      }
+    } catch (error) {
+      console.error("fetch tags failed", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTags();
+  }, [fetchTags]);
 
   const fetchList = useCallback(async (page, query) => {
     setLoading(true);
@@ -89,6 +125,7 @@ export default function Admin() {
           page: Math.max(page - 1, 0),
           query,
           size: pageSize,
+          tag: activeTag === "all" ? "" : activeTag,
         }),
       });
 
@@ -103,6 +140,7 @@ export default function Admin() {
       }
 
       setListData(Array.isArray(data.data) ? data.data : []);
+      fetchTags();
 
       const total = Number(data.total) || 0;
       setTotalItems(total);
@@ -113,7 +151,7 @@ export default function Admin() {
     } finally {
       setLoading(false);
     }
-  }, [pageSize]);
+  }, [pageSize, activeTag, fetchTags]);
 
   useEffect(() => {
     fetchList(currentPage, searchQuery);
@@ -157,26 +195,57 @@ export default function Admin() {
     setPageSize(value);
     setCurrentPage(1);
   };
+  const handleTagSelect = (tag) => {
+    setActiveTag(tag);
+    setCurrentPage(1);
+  };
+
+  const handleAddTagFilter = (event) => {
+    event.preventDefault();
+    const value = newTag.trim();
+    if (!value) return;
+    if (!availableTags.includes(value)) {
+      setAvailableTags((prev) => [...prev, value]);
+    }
+    setActiveTag(value);
+    setNewTag("");
+  };
+
+  const currentTagLabel = getTagLabel(activeTag);
 
   const stats = useMemo(
-    () => [
-      {
-        label: "素材总量",
-        value: totalItems.toLocaleString("zh-CN"),
-        description: "包含图片、视频与其他文件",
-      },
-      {
-        label: "当前页码",
-        value: `${currentPage}/${totalPages}`,
-        description: `每页展示 ${pageSize} 条`,
-      },
-      {
-        label: "筛选状态",
-        value: searchQuery ? searchQuery : "未使用筛选",
-        description: searchQuery ? "当前关键字" : "显示全部数据",
-      },
-    ],
-    [currentPage, pageSize, totalItems, totalPages, searchQuery],
+    () => {
+      const filterValue = searchQuery
+        ? `关键字：${searchQuery}`
+        : activeTag === "all"
+          ? "未使用筛选"
+          : `标签：${currentTagLabel}`;
+      const filterDescription = searchQuery
+        ? activeTag === "all"
+          ? "当前关键字筛选"
+          : `关键字 + 标签：${currentTagLabel}`
+        : activeTag === "all"
+          ? "显示全部数据"
+          : `当前标签：${currentTagLabel}`;
+      return [
+        {
+          label: "素材总量",
+          value: totalItems.toLocaleString("zh-CN"),
+          description: "包含图片、视频与其他文件类型",
+        },
+        {
+          label: "当前页码",
+          value: `${currentPage}/${totalPages}`,
+          description: `每页显示 ${pageSize} 条`,
+        },
+        {
+          label: "筛选状态",
+          value: filterValue,
+          description: filterDescription,
+        },
+      ];
+    },
+    [activeTag, currentPage, currentTagLabel, pageSize, searchQuery, totalItems, totalPages],
   );
 
   return (
@@ -203,16 +272,16 @@ export default function Admin() {
                 </span>
                 <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-blue-300/90">Admin Console</p>
-                  <h1 className="text-2xl font-semibold tracking-wide">素材管理后台</h1>
+                  <h1 className="text-2xl font-semibold tracking-wide">素材管理控制台</h1>
                   <p className={`text-xs ${mutedTextClass}`}>
-                    快速检索、审阅与维护上传的文件，保持平台高效整洁。主题与首页同步，日夜皆护眼。
+                    快速检索、监控并维护已上传的素材，让平台高效有序。主题与首页同步，日夜模式随时切换。
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" onClick={toggleTheme} className={subtleButtonClass}>
                   <FontAwesomeIcon icon={faCircleHalfStroke} className="h-4 w-4" />
-                  切换为{isDark ? "浅色" : "暗色"}主题
+                  {`切换为${isDark ? "浅色" : "深色"}主题`}
                 </button>
                 <Link href="/" className={subtleButtonClass}>
                   <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
@@ -247,7 +316,7 @@ export default function Admin() {
                     type="text"
                     value={searchInput}
                     onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="输入文件名或关键词"
+                    placeholder="输入文件名或关键字"
                     className={inputClass}
                   />
                 </div>
@@ -337,3 +406,6 @@ export default function Admin() {
     </main>
   );
 }
+
+
+

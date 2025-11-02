@@ -85,8 +85,62 @@ export default function Home() {
   const [Loginuser, setLoginuser] = useState("");
   const [boxType, setBoxtype] = useState("img");
   const [theme, setTheme] = useState("light");
+  const [availableTags, setAvailableTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
 
   const parentRef = useRef(null);
+
+  const fetchAvailableTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.tags)) {
+        setAvailableTags(data.tags);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tags", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAvailableTags();
+  }, [fetchAvailableTags]);
+
+  const determineKindTag = (file) => {
+    const type = (file.type || "").toLowerCase();
+    if (type.startsWith("image/")) return "image";
+    if (type.startsWith("video/")) return "video";
+    const name = (file.name || "").toLowerCase();
+    const ext = name.includes(".") ? name.split(".").pop() : "";
+    if (IMAGE_EXTENSIONS.includes(ext)) return "image";
+    if (VIDEO_EXTENSIONS.includes(ext)) return "video";
+    return "file";
+  };
+
+  const toggleSelectedTag = (tag) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
+    );
+  };
+
+  const handleAddCustomTag = (event) => {
+    event.preventDefault();
+    const value = tagInput.trim();
+    if (!value) return;
+    if (!availableTags.includes(value)) {
+      setAvailableTags((prev) => [...prev, value]);
+    }
+    if (!selectedTags.includes(value)) {
+      setSelectedTags((prev) => [...prev, value]);
+    }
+    setTagInput("");
+  };
+
+  const handleRemoveSelectedTag = (tag) => {
+    setSelectedTags((prev) => prev.filter((item) => item !== tag));
+  };
 
   const tabs = [
     { id: "preview", label: "预览", icon: faEye },
@@ -286,6 +340,13 @@ export default function Home() {
         const formData = new FormData();
         formData.append(formFieldName, item);
 
+        const kindTag = determineKindTag(item);
+        const tagSet = new Set(
+          selectedTags.map((tag) => tag.trim()).filter(Boolean),
+        );
+        tagSet.add(kindTag);
+        formData.append("tags", Array.from(tagSet).join(","));
+
         try {
           const targetUrl =
             selectedOption === "tgchannel" || selectedOption === "r2"
@@ -300,8 +361,15 @@ export default function Home() {
 
           if (response.ok) {
             const result = await response.json();
-            item.url = result.url;
-            setUploadedImages((prev) => [...prev, item]);
+            const itemTags =
+              Array.isArray(result.tags) && result.tags.length > 0
+                ? result.tags
+                : Array.from(tagSet);
+            const enrichedItem = Object.assign({}, item, {
+              url: result.url,
+              tags: itemTags,
+            });
+            setUploadedImages((prev) => [...prev, enrichedItem]);
             setSelectedFiles((prev) => prev.filter((f) => f !== item));
             successCount += 1;
           } else {
@@ -341,6 +409,7 @@ export default function Home() {
       setUploadedFilesNum((prev) => prev + successCount);
       if (successCount > 0) {
         toast.success(`已成功上传 ${successCount} 个文件`);
+        fetchAvailableTags();
       }
     } catch (error) {
       console.error("上传过程中出现错误", error);
@@ -470,6 +539,12 @@ export default function Home() {
       <div className="space-y-4">
         {uploadedImages.map((data, index) => {
           const kind = resolveKind(data);
+          const tagDisplayList = Array.isArray(data.tags)
+            ? data.tags
+            : String(data.tags || "")
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter(Boolean);
 
           const renderThumb = () => {
             if (kind === "image") {
@@ -512,6 +587,18 @@ export default function Home() {
             >
               <div className="flex items-center justify-center md:w-40">{renderThumb()}</div>
               <div className="flex flex-1 flex-col gap-2">
+                {tagDisplayList.length > 0 && (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {tagDisplayList.map((tag) => (
+                      <span
+                        key={`${data.url}-${tag}`}
+                        className="rounded-full border border-blue-400/40 px-3 py-1 text-blue-400"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {linkBuilders.preview.map((builder) => {
                   const value = builder.value(data);
                   return (
@@ -842,6 +929,74 @@ export default function Home() {
             </div>
 
             <section className="space-y-6">
+              <div className={`rounded-2xl border px-5 py-4 ${surfaceClass}`}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold">自定义标签</span>
+                    <div className="flex flex-wrap gap-2">
+                      {availableTags
+                        .filter((tag) => !["image", "video", "file"].includes(tag))
+                        .map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleSelectedTag(tag)}
+                            className={`rounded-full border px-3 py-1 text-xs transition ${
+                              selectedTags.includes(tag)
+                                ? "border-blue-400 bg-blue-500/20 text-blue-400"
+                                : isDark
+                                ? "border-white/15 bg-white/5 text-slate-200 hover:border-blue-400/70"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-blue-500/60"
+                            }`}
+                          >
+                            #{tag}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                  <form onSubmit={handleAddCustomTag} className="flex items-center gap-2">
+                    <input
+                      value={tagInput}
+                      onChange={(event) => setTagInput(event.target.value)}
+                      placeholder="新增标签并按回车"
+                      className={`w-48 rounded-full border px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/50 ${
+                        isDark ? "border-white/15 bg-white/5 text-slate-100" : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:scale-[1.03]"
+                    >
+                      添加
+                    </button>
+                  </form>
+                </div>
+                {selectedTags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    {selectedTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="flex items-center gap-1 rounded-full border border-blue-400/60 px-3 py-1 text-blue-400"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSelectedTag(tag)}
+                          className="text-blue-200 hover:text-white"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className={`mt-2 text-xs ${mutedTextClass}`}>
+                  注：系统会根据文件类型自动归类为 <span className="font-medium text-blue-400">image</span> /
+                  <span className="font-medium text-blue-400">video</span> /
+                  <span className="font-medium text-blue-400">file</span>。
+                </p>
+              </div>
+
               <div
                 className={`relative rounded-3xl border-2 border-dashed p-8 transition ${dropZoneClass}`}
                 onDrop={handleDrop}
