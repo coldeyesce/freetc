@@ -21,6 +21,25 @@ async function ensureTagsColumn(db) {
 
 export const runtime = "edge";
 
+let tgMetaTableEnsured = false;
+async function ensureTelegramMetaTable(db) {
+  if (tgMetaTableEnsured) return;
+  try {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS tg_file_meta (
+          file_id TEXT PRIMARY KEY,
+          file_name TEXT,
+          message_id INTEGER,
+          chat_id TEXT
+        )`,
+      )
+      .run();
+  } finally {
+    tgMetaTableEnsured = true;
+  }
+}
+
 export async function POST(request) {
   const { env } = getRequestContext();
 
@@ -67,7 +86,35 @@ export async function POST(request) {
 
     const listParams = [...params, pageSize, offset];
     const listStmt = env.IMG.prepare(listSql).bind(...listParams);
-    const { results } = await listStmt.all();
+    let { results } = await listStmt.all();
+
+    if (Array.isArray(results) && results.length > 0) {
+      const telegramRecords = results.filter((item) => typeof item?.url === "string" && item.url.startsWith("/cfile/"));
+      if (telegramRecords.length > 0) {
+        await ensureTelegramMetaTable(env.IMG);
+        const fileIds = telegramRecords
+          .map((item) => item.url.replace("/cfile/", "").trim())
+          .filter(Boolean);
+        if (fileIds.length > 0) {
+          const placeholders = fileIds.map(() => "?").join(",");
+          const metaStmt = env.IMG
+            .prepare(`SELECT file_id, file_name FROM tg_file_meta WHERE file_id IN (${placeholders})`)
+            .bind(...fileIds);
+          const metaRows = await metaStmt.all();
+          const metaMap = new Map((metaRows?.results ?? []).map((row) => [row.file_id, row.file_name]));
+          results = results.map((item) => {
+            if (typeof item?.url === "string" && item.url.startsWith("/cfile/")) {
+              const fileId = item.url.replace("/cfile/", "").trim();
+              const fileName = metaMap.get(fileId);
+              if (fileName) {
+                return { ...item, filename: fileName };
+              }
+            }
+            return item;
+          });
+        }
+      }
+    }
 
     const totalStmt = env.IMG.prepare(totalSql).bind(...params);
     const totalRow = await totalStmt.first();

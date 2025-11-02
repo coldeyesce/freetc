@@ -10,6 +10,41 @@ const corsHeaders = {
 	'Content-Type': 'application/json'
 };
 
+let tgMetaTableEnsured = false;
+async function ensureTelegramMetaTable(db) {
+	if (tgMetaTableEnsured) return;
+	try {
+		await db
+			.prepare(
+				`CREATE TABLE IF NOT EXISTS tg_file_meta (
+          file_id TEXT PRIMARY KEY,
+          file_name TEXT,
+          message_id INTEGER,
+          chat_id TEXT
+        )`,
+			)
+			.run();
+	} finally {
+		tgMetaTableEnsured = true;
+	}
+}
+
+async function saveTelegramMeta(db, { fileId, fileName, messageId, chatId }) {
+	if (!db || !fileId) return;
+	await ensureTelegramMetaTable(db);
+	await db
+		.prepare(
+			`INSERT INTO tg_file_meta (file_id, file_name, message_id, chat_id)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(file_id) DO UPDATE SET
+         file_name = excluded.file_name,
+         message_id = excluded.message_id,
+         chat_id = excluded.chat_id`,
+		)
+		.bind(fileId, fileName ?? null, messageId ?? null, chatId ?? null)
+		.run();
+}
+
 export async function POST(request) {
 	const { env, cf, ctx } = getRequestContext();
 	
@@ -29,7 +64,22 @@ export async function POST(request) {
 	const Referer = request.headers.get('Referer') || "Referer";
 
 	const formData = await request.formData();
-	const fileType = formData.get('file').type;
+	const uploadFile = formData.get('file');
+	if (!uploadFile || typeof uploadFile !== "object" || typeof uploadFile.stream !== "function") {
+		return Response.json(
+			{
+				status: 400,
+				message: "请求体缺少有效文件",
+				success: false,
+			},
+			{
+				status: 400,
+				headers: corsHeaders,
+			},
+		);
+	}
+	const fileType = uploadFile.type || "";
+	const originalFileName = typeof uploadFile.name === "string" ? uploadFile.name : "";
 
 	const req_url = new URL(request.url);
 
@@ -51,7 +101,7 @@ export async function POST(request) {
 	const up_url = `https://api.telegram.org/bot${env.TG_BOT_TOKEN}/${endpoint}`;
 	let newformData = new FormData();
 	newformData.append("chat_id", env.TG_CHAT_ID);
-	newformData.append(fileTypevalue, formData.get('file'));
+	newformData.append(fileTypevalue, uploadFile);
 
 	try {
 		const res_img = await fetch(up_url, {
@@ -66,10 +116,29 @@ export async function POST(request) {
 		let responseData = await res_img.json();
 		const fileData = await getFile(responseData);
 
+		if (!fileData?.file_id) {
+			return Response.json(
+				{
+					status: 502,
+					message: "Telegram 返回的数据不完整，缺少文件 ID",
+					success: false,
+				},
+				{
+					status: 502,
+					headers: corsHeaders,
+				},
+			);
+		}
+
+		const displayName =
+			originalFileName ||
+			fileData.file_name ||
+			`${fileTypevalue || 'file'}-${Date.now()}`;
+
 		const data = {
 			"url": `${req_url.origin}/api/cfile/${fileData.file_id}`,
 			"code": 200,
-			"name": fileData.file_name
+			"name": displayName
 		}
 		if (!env.IMG) {
 			data.env_img = "null"
@@ -85,6 +154,12 @@ export async function POST(request) {
 				const rating_index = await getRating(env, `${fileData.file_id}`);
 				const nowTime = await get_nowTime()
 				await insertImageData(env.IMG, `/cfile/${fileData.file_id}`, Referer, clientIp, rating_index, nowTime);
+				await saveTelegramMeta(env.IMG, {
+					fileId: fileData.file_id,
+					fileName: displayName,
+					messageId: responseData?.result?.message_id ?? null,
+					chatId: env.TG_CHAT_ID,
+				});
 
 				return Response.json({
 					...data,
@@ -104,6 +179,12 @@ export async function POST(request) {
 			} catch (error) {
 				console.log(error);
 				await insertImageData(env.IMG, `/cfile/${fileData.file_id}`, Referer, clientIp, -1, nowTime);
+				await saveTelegramMeta(env.IMG, {
+					fileId: fileData.file_id,
+					fileName: displayName,
+					messageId: responseData?.result?.message_id ?? null,
+					chatId: env.TG_CHAT_ID,
+				});
 
 
 				return Response.json({
