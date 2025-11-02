@@ -811,10 +811,10 @@ export default function Home() {
                   onChange={handleSelectChange}
                   className={headerSelectClass}
                 >
-                  <option value="tg">TG（会失效）</option>
+                  {/* <option value="tg">TG（会失效）</option> */}
                   <option value="tgchannel">TG Channel</option>
                   <option value="r2">R2</option>
-                  <option value="58img">58 图床</option>
+                  {/* <option value="58img">58 图床</option> */}
                 </select>
               </label>
               <button
