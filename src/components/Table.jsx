@@ -8,9 +8,8 @@ import {
   faFilm,
   faImage,
   faLink,
-  faFileLines,
+  faTrashCan,
 } from "@fortawesome/free-solid-svg-icons";
-import Switcher from "@/components/SwitchButton";
 import TooltipItem from "@/components/Tooltip";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 
@@ -53,9 +52,9 @@ const VIDEO_EXTENSIONS = [
 ];
 
 const FILE_KIND_META = {
-  image: { label: "图片", icon: faImage, tone: "text-sky-300", bg: "bg-sky-500/15" },
-  video: { label: "视频", icon: faFilm, tone: "text-violet-300", bg: "bg-violet-500/15" },
-  other: { label: "文件", icon: faFileLines, tone: "text-slate-300", bg: "bg-slate-500/15" },
+  image: { label: "图片", icon: faImage },
+  video: { label: "视频", icon: faFilm },
+  other: { label: "文件", icon: faLink },
 };
 
 const formatDateTime = (value) => {
@@ -171,20 +170,19 @@ export default function Table({ data: initialData = [], isDark = true }) {
   }, [data, getImgUrl]);
 
   const cardClass = isDark
-    ? "rounded-2xl border border-white/10 bg-white/6 px-4 py-3 backdrop-blur"
-    : "rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm";
+    ? "rounded-2xl border border-white/10 bg-white/6 px-5 py-4 backdrop-blur"
+    : "rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm";
   const badgeClass = isDark
     ? "inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] text-slate-200"
     : "inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-600";
   const metaLabelClass = isDark ? "text-[11px] text-slate-400" : "text-[11px] text-slate-500";
   const metaValueClass = isDark ? "text-xs text-white" : "text-xs text-slate-800";
-  const actionButtonClass = isDark
-    ? "inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[11px] text-slate-100 transition hover:border-blue-400/70"
-    : "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-700 transition hover:border-blue-500/60";
-  const secondaryTagClass = isDark
-    ? "rounded-full border border-white/12 bg-white/10 px-2 text-[11px] text-slate-200"
-    : "rounded-full border border-slate-200 bg-slate-100 px-2 text-[11px] text-slate-600";
   const mutedTextClass = isDark ? "text-[11px] text-slate-400" : "text-[11px] text-slate-500";
+  const actionButtonClass = isDark
+    ? "inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] text-slate-100 transition hover:border-blue-400/70"
+    : "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-700 transition hover:border-blue-500/60";
+  const deleteButtonClass =
+    "inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-red-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-[0_10px_28px_-18px_rgba(248,113,113,0.7)] transition hover:scale-[1.04]";
 
   if (cards.length === 0) {
     return (
@@ -198,105 +196,150 @@ export default function Table({ data: initialData = [], isDark = true }) {
     );
   }
 
+  const [primaryCard, ...restCards] = cards;
+
+  const renderPreview = (card, sizeClass) => (
+    <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/40 ${sizeClass}`}>
+      {card.previewUrl ? (
+        <PhotoView src={card.previewUrl}>
+          <div className="flex h-full w-full items-center justify-center">
+            {card.kind === "video" ? (
+              <video src={card.previewUrl} className="h-full w-full object-cover" />
+            ) : (
+              <img src={card.previewUrl} alt={card.displayName} className="h-full w-full object-cover" />
+            )}
+          </div>
+        </PhotoView>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">无预览</div>
+      )}
+    </div>
+  );
+
+  const renderActions = (card) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => handleCopy(card.previewUrl, "直链已复制")}
+        className={actionButtonClass}
+      >
+        <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
+        复制直链
+      </button>
+      <button
+        type="button"
+        onClick={() => handleCopy(card.linkOptions[1].value, "Markdown 已复制")}
+        className={actionButtonClass}
+      >
+        <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
+        Markdown
+      </button>
+      <button type="button" onClick={() => handleOpen(card.previewUrl)} className={actionButtonClass}>
+        <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
+        打开链接
+      </button>
+      <button type="button" onClick={() => handleDelete(card.raw.url)} className={deleteButtonClass}>
+        <FontAwesomeIcon icon={faTrashCan} className="h-3 w-3" />
+        删除
+      </button>
+    </div>
+  );
+
+  const renderPrimaryCard = (card) => {
+    const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
+    return (
+      <div key={card.key} className={`${cardClass} flex flex-col gap-4`}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+          <div className="flex flex-col items-start gap-2">
+            {renderPreview(card, "h-36 w-56 md:h-44 md:w-72")}
+            <span className={`${badgeClass} gap-1`}>
+              <FontAwesomeIcon icon={kindMeta.icon} className="h-3 w-3" />
+              {kindMeta.label}
+            </span>
+          </div>
+          <div className="flex flex-1 flex-col gap-3">
+            <TooltipItem tooltipsText={card.displayName} position="top">
+              <h3 className="truncate text-base font-semibold">{card.displayName}</h3>
+            </TooltipItem>
+            <p className={`break-all text-xs ${mutedTextClass}`}>{card.previewUrl}</p>
+            <div className="grid gap-3 sm:grid-cols-2 text-xs">
+              <div>
+                <p className={metaLabelClass}>上传时间</p>
+                <p className={metaValueClass}>{card.time}</p>
+              </div>
+              <div>
+                <p className={metaLabelClass}>来源地址</p>
+                <TooltipItem tooltipsText={card.referer} position="bottom">
+                  <p className={`${metaValueClass} truncate`}>{card.referer}</p>
+                </TooltipItem>
+              </div>
+              <div>
+                <p className={metaLabelClass}>IP</p>
+                <p className={metaValueClass}>{card.ip}</p>
+              </div>
+              <div>
+                <p className={metaLabelClass}>访问 / 评分</p>
+                <p className={metaValueClass}>
+                  {card.pv} / {card.rating}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        {renderActions(card)}
+      </div>
+    );
+  };
+
+  const renderCompactCard = (card) => {
+    const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
+    return (
+      <div key={card.key} className={`${cardClass} flex flex-col gap-3 md:flex-row md:items-center md:gap-4`}>
+        <div className="flex items-center gap-3 md:w-64">
+          {renderPreview(card, "h-16 w-24")}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <TooltipItem tooltipsText={card.displayName} position="top">
+                <p className="truncate text-sm font-semibold">{card.displayName}</p>
+              </TooltipItem>
+              <span className={`${badgeClass} gap-1`}>
+                <FontAwesomeIcon icon={kindMeta.icon} className="h-3 w-3" />
+                {kindMeta.label}
+              </span>
+            </div>
+            <p className={`truncate ${mutedTextClass}`}>{card.previewUrl}</p>
+          </div>
+        </div>
+        <div className="flex flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-[11px]">
+          <span>
+            <span className={metaLabelClass}>时间</span> <span className={metaValueClass}>{card.time}</span>
+          </span>
+          <span>
+            <span className={metaLabelClass}>来源</span>{" "}
+            <TooltipItem tooltipsText={card.referer} position="bottom">
+              <span className={`${metaValueClass} truncate max-w-[140px] inline-block align-middle`}>{card.referer}</span>
+            </TooltipItem>
+          </span>
+          <span>
+            <span className={metaLabelClass}>IP</span> <span className={metaValueClass}>{card.ip}</span>
+          </span>
+          <span>
+            <span className={metaLabelClass}>访问/评分</span>{" "}
+            <span className={metaValueClass}>
+              {card.pv} / {card.rating}
+            </span>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">{renderActions(card)}</div>
+      </div>
+    );
+  };
+
   return (
     <PhotoProvider maskOpacity={0.6}>
       <div className="space-y-3">
-        {cards.map((card) => {
-          const kindMeta = FILE_KIND_META[card.kind] ?? FILE_KIND_META.other;
-          return (
-            <div key={card.key} className={`${cardClass} flex flex-col gap-3`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-                <div className="flex shrink-0 items-center gap-4">
-                  <div className="relative h-20 w-28 overflow-hidden rounded-xl border border-white/10 bg-slate-900/40">
-                    {card.previewUrl ? (
-                      <PhotoView src={card.previewUrl}>
-                        <div className="flex h-full w-full items-center justify-center">
-                          {card.kind === "video" ? (
-                            <video src={card.previewUrl} className="h-full w-full object-cover" />
-                          ) : (
-                            <img src={card.previewUrl} alt={card.displayName} className="h-full w-full object-cover" />
-                          )}
-                        </div>
-                      </PhotoView>
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">无预览</div>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <TooltipItem tooltipsText={card.displayName} position="top">
-                      <p className="max-w-[220px] truncate text-sm font-semibold">{card.displayName}</p>
-                    </TooltipItem>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`${badgeClass} gap-1`}>
-                        <FontAwesomeIcon icon={kindMeta.icon} className={`${kindMeta.tone} h-3 w-3`} />
-                        <span className={kindMeta.tone}>{kindMeta.label}</span>
-                      </span>
-                      <span className={secondaryTagClass}>{card.originalUrl.split("/").pop()}</span>
-                    </div>
-                    <p className={`break-all ${mutedTextClass}`}>{card.previewUrl}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-1 flex-wrap gap-x-8 gap-y-2 text-xs">
-                  <div>
-                    <p className={metaLabelClass}>上传时间</p>
-                    <p className={metaValueClass}>{card.time}</p>
-                  </div>
-                  <div className="max-w-[200px]">
-                    <p className={metaLabelClass}>来源地址</p>
-                    <TooltipItem tooltipsText={card.referer} position="bottom">
-                      <p className={`${metaValueClass} truncate`}>{card.referer}</p>
-                    </TooltipItem>
-                  </div>
-                  <div>
-                    <p className={metaLabelClass}>IP</p>
-                    <p className={metaValueClass}>{card.ip}</p>
-                  </div>
-                  <div>
-                    <p className={metaLabelClass}>访问</p>
-                    <p className={metaValueClass}>{card.pv}</p>
-                  </div>
-                  <div>
-                    <p className={metaLabelClass}>评分</p>
-                    <p className={metaValueClass}>{card.rating}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {card.linkOptions.map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => handleCopy(option.value, `${option.label} 已复制`)}
-                    className={actionButtonClass}
-                  >
-                    <FontAwesomeIcon icon={faCopy} className="h-3 w-3" />
-                    {option.label}
-                  </button>
-                ))}
-                <button type="button" onClick={() => handleOpen(card.previewUrl)} className={actionButtonClass}>
-                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
-                  打开链接
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
-                <div className="flex items-center gap-2">
-                  <span className={metaLabelClass}>限制访问</span>
-                  <Switcher initialChecked={card.raw.rating} initName={card.raw.url} />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(card.raw.url)}
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-red-500 px-4 py-1.5 text-[11px] font-semibold text-white shadow-[0_10px_28px_-15px_rgba(248,113,113,0.75)] transition hover:scale-[1.05]"
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-          );
-        })}
+        {renderPrimaryCard(primaryCard)}
+        {restCards.map((card) => renderCompactCard(card))}
       </div>
     </PhotoProvider>
   );
