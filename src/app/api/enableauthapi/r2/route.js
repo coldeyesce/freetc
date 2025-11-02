@@ -6,8 +6,6 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(request) {
 
-
-
 	const { env, cf, ctx } = getRequestContext();
 
 	if (!env.IMGRS) {
@@ -21,12 +19,7 @@ export async function POST(request) {
 		})
 	}
 
-
-
-
 	const req_url = new URL(request.url);
-
-
 
 	const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || request.socket.remoteAddress;
 	const clientIp = ip ? ip.split(',')[0].trim() : 'IP not found';
@@ -41,17 +34,12 @@ export async function POST(request) {
 	header.set("content-type", fileType)
 	header.set("content-length", `${file.size}`)
 
-
 	const corsHeaders = {
 		'Access-Control-Allow-Origin': '*',
 		'Access-Control-Allow-Headers': 'Content-Type',
 		'Access-Control-Max-Age': '86400', // 24 hours
 		'Content-Type': 'application/json'
 	};
-
-
-
-
 
 	try {
 
@@ -134,10 +122,6 @@ export async function POST(request) {
 	}
 
 }
-
-
-
-
 
 
 async function insertImageData(env, src, referer, ip, rating, time) {

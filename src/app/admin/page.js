@@ -155,12 +155,12 @@ export default function Admin() {
       {
         label: "当前页码",
         value: `${currentPage}/${totalPages}`,
-        description: "每页显示 10 条记录",
+        description: "每页展示 10 条",
       },
       {
-        label: "搜索关键词",
-        value: searchQuery || "未筛选",
-        description: searchQuery ? "当前筛选结果" : "显示全部数据",
+        label: "筛选状态",
+        value: searchQuery ? searchQuery : "未使用筛选",
+        description: searchQuery ? "当前关键字" : "显示全部数据",
       },
     ],
     [currentPage, totalItems, totalPages, searchQuery],
@@ -176,44 +176,51 @@ export default function Admin() {
         </div>
 
         <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10">
-          <header className={`flex flex-col gap-5 rounded-[28px] border ${surfaceClass} p-6 md:flex-row md:items-center md:justify-between`}>
-            <div className="flex items-center gap-4">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30">
-                <FontAwesomeIcon icon={faGaugeHigh} className="h-6 w-6" />
-              </span>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.3em] text-blue-300/90">Admin Console</p>
-                <h1 className="text-2xl font-semibold tracking-wide">素材管理后台</h1>
-                <p className={`text-xs ${mutedTextClass}`}>
-                  快速检索、审阅与维护上传的文件，保持平台高效整洁。主题与首页同步，在明暗之间自由切换。
-                </p>
+          <header
+            className={`rounded-[32px] border ${surfaceClass} p-6 ${
+              isDark
+                ? "bg-gradient-to-r from-slate-950/80 via-slate-900/60 to-slate-950/80"
+                : "bg-gradient-to-r from-white via-blue-50/60 to-white"
+            }`}
+          >
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-4">
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30">
+                  <FontAwesomeIcon icon={faGaugeHigh} className="h-6 w-6" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-[0.3em] text-blue-300/90">Admin Console</p>
+                  <h1 className="text-2xl font-semibold tracking-wide">素材管理后台</h1>
+                  <p className={`text-xs ${mutedTextClass}`}>
+                    快速检索、审阅与维护上传的文件，保持平台高效整洁。主题与首页同步，日夜皆护眼。
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={toggleTheme} className={subtleButtonClass}>
+                  <FontAwesomeIcon icon={faCircleHalfStroke} className="h-4 w-4" />
+                  切换为{isDark ? "浅色" : "暗色"}主题
+                </button>
+                <Link href="/" className={subtleButtonClass}>
+                  <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
+                  返回首页
+                </Link>
+                <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className={primaryButtonClass}>
+                  <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
+                  退出登录
+                </button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={toggleTheme} className={subtleButtonClass}>
-                <FontAwesomeIcon icon={faCircleHalfStroke} className="h-4 w-4" />
-                切换为{isDark ? "浅色" : "暗色"}主题
-              </button>
-              <Link href="/" className={subtleButtonClass}>
-                <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
-                返回首页
-              </Link>
-              <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className={primaryButtonClass}>
-                <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
-                退出登录
-              </button>
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              {stats.map((item) => (
+                <div key={item.label} className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-300/80">{item.label}</p>
+                  <p className="mt-1 text-xl font-semibold">{item.value}</p>
+                  <p className={`text-[11px] ${mutedTextClass}`}>{item.description}</p>
+                </div>
+              ))}
             </div>
           </header>
-
-          <section className="grid gap-4 sm:grid-cols-3">
-            {stats.map((item) => (
-              <div key={item.label} className={`flex flex-col gap-2 rounded-[24px] border ${surfaceClass} p-5`}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-300/80">{item.label}</p>
-                <p className="text-2xl font-semibold">{item.value}</p>
-                <p className={`text-xs ${mutedTextClass}`}>{item.description}</p>
-              </div>
-            ))}
-          </section>
 
           <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
             <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">

@@ -160,8 +160,6 @@ export default function Table({ data: initialData = [], isDark = true }) {
         time: formatDateTime(item.time || item.created_at),
         referer,
         ip,
-        pv: item.total ?? item.pv ?? 0,
-        rating: item.rating ?? 0,
         linkOptions,
         kind,
         raw: item,
@@ -277,12 +275,6 @@ export default function Table({ data: initialData = [], isDark = true }) {
                 <p className={metaLabelClass}>IP</p>
                 <p className={metaValueClass}>{card.ip}</p>
               </div>
-              <div>
-                <p className={metaLabelClass}>访问 / 评分</p>
-                <p className={metaValueClass}>
-                  {card.pv} / {card.rating}
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -322,12 +314,6 @@ export default function Table({ data: initialData = [], isDark = true }) {
           </span>
           <span>
             <span className={metaLabelClass}>IP</span> <span className={metaValueClass}>{card.ip}</span>
-          </span>
-          <span>
-            <span className={metaLabelClass}>访问/评分</span>{" "}
-            <span className={metaValueClass}>
-              {card.pv} / {card.rating}
-            </span>
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">{renderActions(card)}</div>
