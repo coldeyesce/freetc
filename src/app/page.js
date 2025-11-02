@@ -800,7 +800,7 @@ export default function Home() {
               </span>
               <div className="flex flex-col">
                 <span className="text-4xl font-semibold">文件上传中心</span>
-                <span className={`text-sm ${mutedTextClass}`}>轻盈、稳定、随处可分享</span>
+                <span className={`text-sm ${mutedTextClass}`}>轻盈、稳定、随处可见</span>
               </div>
             </div>
             <div className="hidden items-center gap-3 md:flex">
@@ -836,9 +836,9 @@ export default function Home() {
           <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 pt-12">
             <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div className="max-w-3xl space-y-4">
-                <h1 className="text-4xl font-semibold tracking-wide">上传、生成、分享一站完成</h1>
+                <h1 className="text-4xl font-semibold tracking-wide">上传、管理一站完成</h1>
                 <p className={`text-base leading-7 ${mutedTextClass}`}>
-                  支持多格式快速上传，自动生成常用分享链接。日间明亮、夜间护眼，随时随地管理你的素材。
+                  支持多格式快速上传，日间明亮、夜间护眼，随时随地管理你的素材。
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">
                   {stats.map((item) => (
