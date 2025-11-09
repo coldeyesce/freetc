@@ -809,43 +809,65 @@ export default function Home() {
         wrapper: "flex flex-col items-start gap-1.5 text-left",
         button: "flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2",
         badge: "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em]",
+        showStatus: false,
       },
       mobile: {
         wrapper: "flex w-full flex-col gap-2",
         button: "flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
         badge: "flex w-full items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
+        showStatus: false,
       },
       card: {
         wrapper: "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end",
         button: "flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400",
         badge: "flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.35em]",
+        showStatus: true,
       },
     };
     const styles = variantStyles[variant] || variantStyles.desktop;
+    const showStatus = Boolean(styles.showStatus);
 
     const enabledBadgeClass = "border-emerald-400/60 bg-emerald-500/10 text-emerald-300";
     const disabledBadgeClass = isDark
       ? "border-white/15 bg-white/5 text-slate-200"
       : "border-slate-200 bg-white text-slate-600";
-    const unavailableMessage = "内容检测：未配置";
+
+    const renderStatusBadge = () => {
+      const statusDot = moderationInfo.enabled
+        ? "bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)]"
+        : "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.7)]";
+      const statusText = moderationInfo.enabled ? "内容检测 · 已开启" : "内容检测 · 待开启";
+      return (
+        <span className={`${styles.badge} ${moderationInfo.enabled ? enabledBadgeClass : disabledBadgeClass}`}>
+          <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusDot}`} />
+          <span>{statusText}</span>
+        </span>
+      );
+    };
 
     if (!moderationInfo.available) {
       if (variant === "card") {
-        return <p className={`text-xs ${mutedTextClass}`}>{unavailableMessage}</p>;
+        return <p className={`text-xs ${mutedTextClass}`}>内容检测：未配置</p>;
       }
-      return <span className={`${styles.badge} ${mutedTextClass}`}>{unavailableMessage}</span>;
+      if (Loginuser === "admin") {
+        return (
+          <div className={styles.wrapper}>
+            <button
+              type="button"
+              onClick={handleModerationToggle}
+              disabled
+              className={`${styles.button} border border-blue-400/60 text-blue-500 opacity-60`}
+            >
+              暂不可用
+            </button>
+          </div>
+        );
+      }
+      return null;
     }
 
-    const badgeClass = `${styles.badge} ${
-      moderationInfo.enabled ? enabledBadgeClass : disabledBadgeClass
-    }`;
-    const statusDot = moderationInfo.enabled
-      ? "bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)]"
-      : "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.7)]";
-    const statusText = moderationInfo.enabled ? "内容检测 · 已开启" : "内容检测 · 待开启";
-
     if (Loginuser === "admin") {
-      const adminButtonClass = `${styles.button} ${
+      const buttonClass = `${styles.button} ${
         moderationInfo.enabled
           ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white shadow-[0_18px_35px_-20px_rgba(16,185,129,0.9)]"
           : "border border-blue-400/60 text-blue-500 hover:bg-blue-500/10"
@@ -854,11 +876,8 @@ export default function Home() {
 
       return (
         <div className={styles.wrapper}>
-          <span className={badgeClass}>
-            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusDot}`} />
-            <span>{statusText}</span>
-          </span>
-          <button type="button" onClick={handleModerationToggle} disabled={moderationInfo.loading} className={adminButtonClass}>
+          {showStatus ? renderStatusBadge() : null}
+          <button type="button" onClick={handleModerationToggle} disabled={moderationInfo.loading} className={buttonClass}>
             <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
             {actionLabel}
           </button>
@@ -866,14 +885,15 @@ export default function Home() {
       );
     }
 
-    return (
-      <div className={styles.wrapper}>
-        <span className={badgeClass}>
-          <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusDot}`} />
-          <span>{statusText}</span>
-        </span>
-      </div>
-    );
+    if (showStatus) {
+      return (
+        <div className={styles.wrapper}>
+          {renderStatusBadge()}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const renderButton = () => {
