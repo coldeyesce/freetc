@@ -450,10 +450,14 @@ async function getRating(env, url) {
 }
 
 function buildRatingUrl(base, url) {
-  const hasQuery = base.includes("?");
-  const endsWithConnector = hasQuery && /[?&]$/.test(base);
+  const trimmed = base.trim();
+  if (trimmed.endsWith("url=")) {
+    return `${trimmed}${encodeURIComponent(url)}`;
+  }
+  const hasQuery = trimmed.includes("?");
+  const endsWithConnector = hasQuery && /[?&]$/.test(trimmed);
   const connector = hasQuery ? (endsWithConnector ? "" : "&") : "?";
-  return `${base}${connector}url=${encodeURIComponent(url)}`;
+  return `${trimmed}${connector}url=${encodeURIComponent(url)}`;
 }
 
 function interpretCustomClassification(payload) {
