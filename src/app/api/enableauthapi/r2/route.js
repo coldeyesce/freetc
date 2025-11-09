@@ -467,21 +467,11 @@ function buildRatingUrl(base, url) {
 
 function interpretCustomClassification(payload) {
   if (Array.isArray(payload)) {
-    const scores = payload.reduce((acc, item) => {
-      const key = typeof item?.className === "string" ? item.className.toLowerCase() : "";
-      const probability = Number(item?.probability) || 0;
-      if (key) acc[key] = probability;
-      return acc;
-    }, {});
-
-    const pornScore = scores.porn ?? 0;
-    const hentaiScore = scores.hentai ?? 0;
-    const sexyScore = scores.sexy ?? 0;
-
-    if (pornScore >= 0.6) return 4;
-    if (hentaiScore >= 0.55) return 3;
-    if (sexyScore >= 0.7) return 2;
-    return 0;
+    const pornEntry = payload.find(
+      (item) => typeof item?.className === "string" && item.className.toLowerCase() === "porn",
+    );
+    const pornScore = Number(pornEntry?.probability) || 0;
+    return pornScore >= 0.6 ? 4 : 0;
   }
 
   if (payload && typeof payload === "object") {
