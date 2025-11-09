@@ -112,6 +112,7 @@ const determineKindTag = (fileType, filename) => {
 
 export async function POST(request) {
   const { env } = getRequestContext();
+  console.log('env...->', env)
 
   if (!env.IMGRS) {
     return Response.json(
@@ -415,6 +416,7 @@ async function get_nowTime() {
 
 async function getRating(env, url) {
   try {
+    console.log('进入getRating...->', env, url)
     const customApi = (env.RATINGAPI || "").trim();
     if (customApi) {
       const target = buildRatingUrl(customApi, url);
