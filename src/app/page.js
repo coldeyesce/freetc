@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
@@ -9,6 +9,7 @@ import {
   faSearchPlus,
   faSun,
   faMoon,
+  faShieldHalved,
   faEye,
   faLink,
   faCode,
@@ -802,6 +803,79 @@ export default function Home() {
     }
   }, [Loginuser, moderationInfo]);
 
+  const renderModerationControl = (variant = "desktop") => {
+    const variantStyles = {
+      desktop: {
+        wrapper: "flex flex-col items-start gap-1.5 text-left",
+        button: "flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2",
+        badge: "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em]",
+      },
+      mobile: {
+        wrapper: "flex w-full flex-col gap-2",
+        button: "flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+        badge: "flex w-full items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
+      },
+      card: {
+        wrapper: "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end",
+        button: "flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400",
+        badge: "flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.35em]",
+      },
+    };
+    const styles = variantStyles[variant] || variantStyles.desktop;
+
+    const enabledBadgeClass = "border-emerald-400/60 bg-emerald-500/10 text-emerald-300";
+    const disabledBadgeClass = isDark
+      ? "border-white/15 bg-white/5 text-slate-200"
+      : "border-slate-200 bg-white text-slate-600";
+    const unavailableMessage = "内容检测：未配置";
+
+    if (!moderationInfo.available) {
+      if (variant === "card") {
+        return <p className={`text-xs ${mutedTextClass}`}>{unavailableMessage}</p>;
+      }
+      return <span className={`${styles.badge} ${mutedTextClass}`}>{unavailableMessage}</span>;
+    }
+
+    const badgeClass = `${styles.badge} ${
+      moderationInfo.enabled ? enabledBadgeClass : disabledBadgeClass
+    }`;
+    const statusDot = moderationInfo.enabled
+      ? "bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)]"
+      : "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.7)]";
+    const statusText = moderationInfo.enabled ? "内容检测 · 已开启" : "内容检测 · 待开启";
+
+    if (Loginuser === "admin") {
+      const adminButtonClass = `${styles.button} ${
+        moderationInfo.enabled
+          ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white shadow-[0_18px_35px_-20px_rgba(16,185,129,0.9)]"
+          : "border border-blue-400/60 text-blue-500 hover:bg-blue-500/10"
+      } ${moderationInfo.loading ? "opacity-60 cursor-not-allowed" : ""}`;
+      const actionLabel = moderationInfo.loading ? "同步中" : moderationInfo.enabled ? "关闭检测" : "开启检测";
+
+      return (
+        <div className={styles.wrapper}>
+          <span className={badgeClass}>
+            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusDot}`} />
+            <span>{statusText}</span>
+          </span>
+          <button type="button" onClick={handleModerationToggle} disabled={moderationInfo.loading} className={adminButtonClass}>
+            <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
+            {actionLabel}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.wrapper}>
+        <span className={badgeClass}>
+          <span className={`inline-flex h-2.5 w-2.5 rounded-full ${statusDot}`} />
+          <span>{statusText}</span>
+        </span>
+      </div>
+    );
+  };
+
   const renderButton = () => {
     if (!isAuthapi) {
       return (
@@ -873,6 +947,7 @@ export default function Home() {
                 <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
                 {isDark ? "浅色模式" : "暗色模式"}
               </button>
+              {renderModerationControl("desktop")}
               {renderButton()}
             </div>
           </div>
@@ -910,7 +985,7 @@ export default function Home() {
                     {/* <option value="58img">58 图床</option> */}
                   </select>
                 </label>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={toggleTheme}
@@ -921,7 +996,10 @@ export default function Home() {
                     <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
                     {isDark ? "浅色模式" : "暗色模式"}
                   </button>
-                  {renderButton()}
+                  {renderModerationControl("mobile")}
+                  <div className="flex w-full justify-start">
+                    {renderButton()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -932,9 +1010,30 @@ export default function Home() {
                   提示：系统会根据文件类型自动归类为
                   <span className="mx-1 font-medium text-blue-400">图片</span>/
                   <span className="mx-1 font-medium text-blue-400">视频</span>/
-                  <span className="mx-1 font-medium text-blue-400">文件</span>标签，便于在后台快速筛选。
+                  <span className="mx-1 font-medium text-blue-400">文件</span>标签，方便在后台快捷筛选。
                 </p>
               </div>
+              <div className={`relative overflow-hidden rounded-2xl border px-6 py-5 ${surfaceClass}`}>
+                <div className="pointer-events-none absolute inset-y-0 right-0 h-32 w-32 translate-x-6 rounded-full bg-gradient-to-br from-emerald-400/25 to-cyan-500/10 blur-3xl" />
+                <div className="pointer-events-none absolute -left-6 -top-6 h-24 w-24 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-transparent blur-2xl" />
+                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 text-white shadow-lg shadow-emerald-500/40">
+                      <FontAwesomeIcon icon={faShieldHalved} className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p className="text-base font-semibold">内容安全检测</p>
+                      <p className={`mt-1 text-sm ${mutedTextClass}`}>
+                        {moderationInfo.enabled
+                          ? "系统将自动拦截涉黄、涉恐等高危内容，公共链接更安心。"
+                          : "建议开启内容检测，自动拦截违规素材，保护站点与用户体验。"}
+                      </p>
+                    </div>
+                  </div>
+                  {renderModerationControl("card")}
+                </div>
+              </div>
+
               <div
                 className={`relative rounded-3xl border-2 border-dashed p-8 transition ${dropZoneClass}`}
                 onDrop={handleDrop}
@@ -1045,3 +1144,4 @@ export default function Home() {
     </main>
   );
 }
+
