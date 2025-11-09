@@ -1,5 +1,6 @@
-export const runtime = 'edge';
+﻿export const runtime = 'edge';
 import { getRequestContext } from '@cloudflare/next-on-pages';
+import { getBooleanConfig } from '@/lib/config';
 
 
 
@@ -58,6 +59,9 @@ export async function POST(request) {
 			headers: corsHeaders,
 		})
 	}
+
+	const hasModerationService = Boolean(env.ModerateContentApiKey || env.RATINGAPI);
+	const moderationEnabled = hasModerationService && env.IMG ? await getBooleanConfig(env.IMG, "moderation_enabled", false) : false;
 
 	const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || request.socket.remoteAddress;
 	const clientIp = ip ? ip.split(',')[0].trim() : 'IP not found';
@@ -130,6 +134,36 @@ export async function POST(request) {
 			);
 		}
 
+
+		const chatId = responseData?.result?.chat?.id ?? env.TG_CHAT_ID;
+		const messageId = responseData?.result?.message_id ?? null;
+
+		let rating_index = 0;
+		if (hasModerationService) {
+			rating_index = await getRating(env, `${fileData.file_id}`);
+			if (moderationEnabled && rating_index >= 3) {
+				if (messageId) {
+					try {
+						await deleteTelegramMessage(env, chatId, messageId);
+					} catch (cleanupError) {
+						console.warn("Failed to delete Telegram message after moderation rejection:", cleanupError);
+					}
+				}
+				return Response.json(
+					{
+						status: 422,
+						message: "内容检测未通过，请更换文件后再试。",
+						success: false,
+					},
+					{
+						status: 422,
+						headers: corsHeaders,
+					},
+				);
+			}
+		}
+
+
 		const displayName =
 			originalFileName ||
 			fileData.file_name ||
@@ -150,9 +184,8 @@ export async function POST(request) {
 				headers: corsHeaders,
 			})
 		} else {
+			const nowTime = await get_nowTime();
 			try {
-				const rating_index = await getRating(env, `${fileData.file_id}`);
-				const nowTime = await get_nowTime()
 				await insertImageData(env.IMG, `/cfile/${fileData.file_id}`, Referer, clientIp, rating_index, nowTime);
 				await saveTelegramMeta(env.IMG, {
 					fileId: fileData.file_id,
@@ -173,9 +206,6 @@ export async function POST(request) {
 					headers: corsHeaders,
 				})
 
-
-
-
 			} catch (error) {
 				console.log(error);
 				await insertImageData(env.IMG, `/cfile/${fileData.file_id}`, Referer, clientIp, -1, nowTime);
@@ -186,7 +216,6 @@ export async function POST(request) {
 					chatId: env.TG_CHAT_ID,
 				});
 
-
 				return Response.json({
 					"msg": error.message
 				}, {
@@ -195,6 +224,7 @@ export async function POST(request) {
 				})
 			}
 		}
+
 
 
 
@@ -273,6 +303,20 @@ const getFile = async (response) => {
 
 
 
+
+async function deleteTelegramMessage(env, chatId, messageId) {
+	if (!env?.TG_BOT_TOKEN || !chatId || !messageId) return;
+	try {
+		await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/deleteMessage`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+		});
+	} catch (error) {
+		console.warn("Failed to delete Telegram message:", error);
+	}
+}
+
 async function insertImageData(env, src, referer, ip, rating, time) {
 	try {
 		const instdata = await env.prepare(
@@ -331,3 +375,4 @@ async function getRating(env, url) {
 		return -1
 	}
 }
+

@@ -87,6 +87,7 @@ export default function Home() {
   const [boxType, setBoxtype] = useState("img");
   const [theme, setTheme] = useState("light");
   const [moderationEnabled, setModerationEnabled] = useState(false);
+  const [moderationLoading, setModerationLoading] = useState(false);
 
   const parentRef = useRef(null);
 
@@ -141,11 +142,29 @@ export default function Home() {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
   };
 
+  const fetchModerationStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/moderation");
+      if (!res.ok) return;
+      const data = await res.json();
+      setModerationEnabled(Boolean(data?.data?.enabled));
+    } catch (error) {
+      console.error("获取内容检测状态失败", error);
+    }
+  }, []);
+
   useEffect(() => {
     ip();
     getTotal();
     isAuth();
-  }, []);
+    fetchModerationStatus();
+  }, [fetchModerationStatus]);
+
+  useEffect(() => {
+    if (Loginuser === "admin") {
+      fetchModerationStatus();
+    }
+  }, [Loginuser, fetchModerationStatus]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -167,7 +186,32 @@ export default function Home() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
+  const handleModerationToggle = useCallback(async () => {
+    if (Loginuser !== "admin") return;
+    setModerationLoading(true);
+    try {
+      const res = await fetch("/api/admin/moderation", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ enabled: !moderationEnabled }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "更新内容检测状态失败");
+      }
+      setModerationEnabled(Boolean(data?.data?.enabled));
+      toast.success(data?.message || (data?.data?.enabled ? "内容检测已开启" : "内容检测已关闭"));
+    } catch (error) {
+      toast.error(error.message || "更新内容检测状态失败");
+    } finally {
+      setModerationLoading(false);
+    }
+  }, [Loginuser, moderationEnabled]);
+
   const isDark = theme === "dark";
+  const isAdmin = Loginuser === "admin";
   const pageBackground = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-900";
   const heroGlow = isDark
     ? "from-blue-500/25 via-cyan-500/15 to-transparent"
@@ -182,6 +226,16 @@ export default function Home() {
   const actionButtonClass = isDark
     ? "border-white/15 bg-white/10 text-white hover:border-blue-400/60"
     : "border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-600";
+  const moderationButtonClass = moderationEnabled
+    ? isDark
+      ? "flex items-center gap-2 rounded-full border border-emerald-400/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/80"
+      : "flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-400"
+    : isDark
+      ? "flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-blue-400/70"
+      : "flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-400/60";
+  const moderationBadgeClass = moderationEnabled
+    ? "text-xs font-semibold text-emerald-500"
+    : "text-xs font-semibold text-slate-400";
   const headerSelectClass = isDark
     ? "rounded-md border border-white/10 bg-slate-900/60 px-2 py-1 text-sm text-slate-100 outline-none transition focus:border-blue-400 focus:bg-slate-900/80 focus:text-white"
     : "rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:text-slate-900";
@@ -829,7 +883,23 @@ export default function Home() {
                 <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
                 {isDark ? "浅色模式" : "暗色模式"}
               </button>
-              {renderButton()}
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={handleModerationToggle}
+                  className={`${moderationButtonClass} ${moderationLoading ? "opacity-70" : ""}`}
+                  disabled={moderationLoading}
+                >
+                  <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
+                  {moderationEnabled ? "内容检测已开启" : "开启内容检测"}
+                </button>
+              ) : (
+                <span
+                  className={`rounded-full border px-4 py-2 text-xs font-semibold ${moderationEnabled ? "border-emerald-300 text-emerald-500" : isDark ? "border-white/15 text-slate-300" : "border-slate-200 text-slate-500"}`}
+                >
+                  内容检测：{moderationEnabled ? "已开启" : "未开启"}
+                </span>
+              )}
             </div>
           </div>
         </header>
@@ -877,6 +947,21 @@ export default function Home() {
                     <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
                     {isDark ? "浅色模式" : "暗色模式"}
                   </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={handleModerationToggle}
+                      className={`${moderationButtonClass} flex-1 justify-center ${moderationLoading ? "opacity-70" : ""}`}
+                      disabled={moderationLoading}
+                    >
+                      <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
+                      {moderationEnabled ? "检测已开" : "开启检测"}
+                    </button>
+                  ) : (
+                    <span className={`flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold ${moderationEnabled ? "border-emerald-300 bg-emerald-50 text-emerald-600" : mutedTextClass}`}>
+                      内容检测：{moderationEnabled ? "已开启" : "未开启"}
+                    </span>
+                  )}
                   {renderButton()}
                 </div>
               </div>

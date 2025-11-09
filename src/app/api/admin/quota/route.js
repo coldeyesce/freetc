@@ -1,4 +1,5 @@
-import { getRequestContext } from "@cloudflare/next-on-pages";
+﻿import { getRequestContext } from "@cloudflare/next-on-pages";
+import { getQuotaLimits, setQuotaLimits } from "@/lib/config";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +11,6 @@ const corsHeaders = {
 export const runtime = "edge";
 
 let quotaTableEnsured = false;
-let quotaConfigTableEnsured = false;
-
 async function ensureQuotaTable(db) {
   if (quotaTableEnsured) return;
   try {
@@ -33,52 +32,6 @@ async function ensureQuotaTable(db) {
   }
 }
 
-async function ensureQuotaConfigTable(db) {
-  if (quotaConfigTableEnsured) return;
-  try {
-    await db
-      .prepare(
-        `CREATE TABLE IF NOT EXISTS quota_config (
-          key TEXT PRIMARY KEY,
-          value INTEGER NOT NULL DEFAULT 0
-        )`,
-      )
-      .run();
-  } finally {
-    quotaConfigTableEnsured = true;
-  }
-}
-
-async function getQuotaConfig(db) {
-  await ensureQuotaConfigTable(db);
-  const defaults = {
-    anonymous: 1,
-    user: 15,
-  };
-  const result = await db.prepare("SELECT key, value FROM quota_config").all();
-  (result?.results ?? []).forEach(({ key, value }) => {
-    if (key === "anonymous_limit") {
-      defaults.anonymous = toSafeInteger(value, 1);
-    }
-    if (key === "user_limit") {
-      defaults.user = toSafeInteger(value, 15);
-    }
-  });
-  return defaults;
-}
-
-async function updateQuotaConfig(db, { anonymous, user }) {
-  await ensureQuotaConfigTable(db);
-  const stmt = await db.prepare(
-    `INSERT INTO quota_config (key, value)
-     VALUES (?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  );
-  await stmt.bind("anonymous_limit", anonymous).run();
-  await stmt.bind("user_limit", user).run();
-  return getQuotaConfig(db);
-}
-
 const toNumber = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;
@@ -92,7 +45,7 @@ const toSafeInteger = (value, fallback = 0) => {
 
 async function collectQuotaSnapshot(db) {
   await ensureQuotaTable(db);
-  const limits = await getQuotaConfig(db);
+  const limits = await getQuotaLimits(db);
 
   const todayKey = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
@@ -261,7 +214,7 @@ export async function PATCH(request) {
   }
 
   try {
-    await updateQuotaConfig(env.IMG, { anonymous: anonymousLimit, user: userLimit });
+    await setQuotaLimits(env.IMG, { anonymous: anonymousLimit, user: userLimit });
     const snapshot = await collectQuotaSnapshot(env.IMG);
     return Response.json(
       {
@@ -287,3 +240,4 @@ export async function PATCH(request) {
     );
   }
 }
+

@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
+import { getQuotaLimits, getBooleanConfig } from "@/lib/config";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,7 +51,6 @@ const VIDEO_EXTENSIONS = [
 
 let tagsColumnEnsured = false;
 let quotaTableEnsured = false;
-let quotaConfigEnsured = false;
 
 async function ensureTagsColumn(db) {
   if (tagsColumnEnsured) return;
@@ -84,45 +84,7 @@ async function ensureQuotaTable(db) {
   }
 }
 
-async function ensureQuotaConfigTable(db) {
-  if (quotaConfigEnsured) return;
-  try {
-    await db
-      .prepare(
-        `CREATE TABLE IF NOT EXISTS quota_config (
-          key TEXT PRIMARY KEY,
-          value INTEGER NOT NULL DEFAULT 0
-        )`,
-      )
-      .run();
-  } finally {
-    quotaConfigEnsured = true;
-  }
-}
 
-const toSafeInteger = (value, fallback = 0) => {
-  const parsed = Math.floor(Number(value));
-  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return fallback;
-  return parsed;
-};
-
-async function getQuotaLimits(db) {
-  await ensureQuotaConfigTable(db);
-  const defaults = {
-    anonymous: 1,
-    user: 15,
-  };
-  const result = await db.prepare("SELECT key, value FROM quota_config").all();
-  (result?.results ?? []).forEach(({ key, value }) => {
-    if (key === "anonymous_limit") {
-      defaults.anonymous = toSafeInteger(value, 1);
-    }
-    if (key === "user_limit") {
-      defaults.user = toSafeInteger(value, 15);
-    }
-  });
-  return defaults;
-}
 
 const normaliseTags = (customTags, kindTag) => {
   const tagSet = new Set(
@@ -155,8 +117,8 @@ export async function POST(request) {
     return Response.json(
       {
         status: 500,
-        message: "IMGRS is not Set",
-        success: false,
+        message: "内容检测未通过，请更换文件后再试。",
+            success: false,
       },
       {
         status: 500,
@@ -184,6 +146,8 @@ export async function POST(request) {
   const dayKey = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
   }).format(new Date());
+  const hasModerationService = Boolean(env.ModerateContentApiKey || env.RATINGAPI);
+  const moderationEnabled = hasModerationService && env.IMG ? await getBooleanConfig(env.IMG, "moderation_enabled", false) : false;
 
   const formData = await request.formData();
   const fileEntries = formData.getAll("file").filter(Boolean);
@@ -192,8 +156,8 @@ export async function POST(request) {
     return Response.json(
       {
         status: 400,
-        message: "file is required",
-        success: false,
+        message: "内容检测未通过，请更换文件后再试。",
+            success: false,
       },
       {
         status: 400,
@@ -212,8 +176,8 @@ export async function POST(request) {
       return Response.json(
         {
           status: 400,
-          message: "未登录用户每次仅允许上传一个文件",
-          success: false,
+          message: "内容检测未通过，请更换文件后再试。",
+            success: false,
         },
         {
           status: 400,
@@ -283,8 +247,8 @@ export async function POST(request) {
       return Response.json(
         {
           status: 404,
-          message: "涓婁紶澶辫触",
-          success: false,
+          message: "内容检测未通过，请更换文件后再试。",
+            success: false,
         },
         {
           status: 404,
@@ -294,12 +258,47 @@ export async function POST(request) {
     }
 
     const fileUrl = `${reqUrl.origin}/api/rfile/${filename}`;
+
     const responsePayload = {
       url: fileUrl,
       code: 200,
       name: filename,
       tags: tagArray,
+      rating_index: 0,
     };
+
+    const shouldRate = hasModerationService;
+    let ratingIndex = 0;
+
+    if (shouldRate) {
+      try {
+        ratingIndex = await getRating(env, fileUrl);
+      } catch (error) {
+        console.error("Content moderation failed:", error);
+        ratingIndex = -1;
+      }
+
+      if (moderationEnabled && !isAdmin && ratingIndex >= 3) {
+        try {
+          await env.IMGRS.delete(filename);
+        } catch (cleanupError) {
+          console.warn("Failed to delete object after moderation rejection:", cleanupError);
+        }
+        return Response.json(
+          {
+            status: 422,
+            message: "内容检测未通过，请更换文件后再试。",
+            success: false,
+          },
+          {
+            status: 422,
+            headers: corsHeaders,
+          },
+        );
+      }
+    }
+
+    responsePayload.rating_index = shouldRate ? ratingIndex : 0;
 
     if (!env.IMG) {
       return Response.json(
@@ -317,7 +316,6 @@ export async function POST(request) {
 
     const nowTime = await get_nowTime();
     try {
-      const ratingIndex = await getRating(env, fileUrl);
       await insertImageData(env.IMG, `/rfile/${filename}`, referer, clientIp, ratingIndex, nowTime, storageString);
       if (!isAdmin && env.IMG) {
         if (isRegular) {
@@ -431,5 +429,26 @@ async function getRating(env, url) {
     return -1;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
