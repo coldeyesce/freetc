@@ -611,10 +611,10 @@ export default function Home() {
                   const value = builder.value(data);
                   return (
                     <div key={`${builder.label}-${index}`} className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                      <span className={`text-xs font-semibold uppercase tracking-[0.3em] ${mutedTextClass}`}>
+                      <span className={`text-xs font-semibold uppercase tracking-[0.3em] ${mutedTextClass} sm:w-28 sm:flex-shrink-0`}>
                         {builder.label}
                       </span>
-                      <div className="flex w-full gap-2">
+                      <div className="flex flex-1 gap-2">
                         <input
                           readOnly
                           value={value}
@@ -871,7 +871,7 @@ export default function Home() {
                   <option value="r2">R2</option>
                 </select>
               </label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-nowrap">
                 <button
                   type="button"
                   onClick={toggleTheme}
@@ -897,11 +897,14 @@ export default function Home() {
                     内容检测：{moderationEnabled ? "已开启" : "未开启"}
                   </span>
                 )}
+              </div>
+              <div className="flex-shrink-0">
                 {renderButton()}
               </div>
             </div>
           </div>
         </header>
+
 
 
         <div className="relative z-20 flex-1 px-4 pb-24">
