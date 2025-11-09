@@ -416,12 +416,12 @@ export default function Admin() {
           <div className={`absolute bottom-28 left-12 h-[240px] w-[240px] rounded-full ${heroGlowLeft} blur-[150px]`} />
         </div>
 
-        <div className="relative z-10 w-full px-4 pt-0 pb-10">
+        <div className="relative z-10 flex w-full flex-col gap-8 pt-0 pb-10">
           <header
-            className={`w-full rounded-[32px] border ${surfaceClass} p-6 ${
+            className={`w-full border-b px-6 py-6 shadow-[0_35px_80px_-30px_rgba(15,23,42,0.2)] ${
               isDark
-                ? "bg-gradient-to-r from-slate-950/80 via-slate-900/60 to-slate-950/80"
-                : "bg-gradient-to-r from-white via-blue-50/60 to-white"
+                ? "border-white/10 bg-gradient-to-r from-slate-950/80 via-slate-900/60 to-slate-950/80"
+                : "border-slate-200 bg-gradient-to-r from-white via-blue-50/60 to-white"
             }`}
           >
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -458,9 +458,11 @@ export default function Admin() {
             </div>
           </header>
 
-          <div className="mx-auto w-full max-w-6xl space-y-8">
-          <div
-            className={`rounded-[32px] border ${surfaceClass} p-6 shadow-[0_35px_80px_-30px_rgba(15,23,42,0.35)]`}
+          <div className="mx-auto w-full max-w-6xl space-y-8 px-4">
+            <div
+              className={`w-full border px-6 py-6 shadow-[0_35px_80px_-30px_rgba(15,23,42,0.15)] ${
+              isDark ? "border-white/10 bg-slate-950/40" : "border-slate-200 bg-white"
+            }`}
           >
             <div className="flex flex-col gap-3">
               <div>

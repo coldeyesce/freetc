@@ -85,6 +85,7 @@ export default function Home() {
   const [Loginuser, setLoginuser] = useState("");
   const [boxType, setBoxtype] = useState("img");
   const [theme, setTheme] = useState("light");
+  const [moderationInfo, setModerationInfo] = useState({ enabled: false, loading: true, available: false });
 
   const parentRef = useRef(null);
 
@@ -143,6 +144,28 @@ export default function Home() {
     ip();
     getTotal();
     isAuth();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadModeration = async () => {
+      try {
+        const res = await fetch('/api/moderation');
+        if (!res.ok) throw new Error('加载内容检测失败');
+        const data = await res.json();
+        if (!cancelled) {
+          setModerationInfo({ enabled: Boolean(data?.data?.enabled), loading: false, available: true });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setModerationInfo((prev) => ({ ...prev, loading: false, available: false }));
+        }
+      }
+    };
+    loadModeration();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -555,10 +578,10 @@ export default function Home() {
                   const value = builder.value(data);
                   return (
                     <div key={`${builder.label}-${index}`} className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                      <span className={`text-xs font-semibold uppercase tracking-[0.3em] ${mutedTextClass}`}>
+                      <span className={`text-xs font-semibold uppercase tracking-[0.3em] ${mutedTextClass} sm:w-28 sm:flex-shrink-0`}>
                         {builder.label}
                       </span>
-                      <div className="flex w-full gap-2">
+                      <div className="flex flex-1 gap-2">
                         <input
                           readOnly
                           value={value}
@@ -755,6 +778,29 @@ export default function Home() {
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" });
   };
+
+  const handleModerationToggle = useCallback(async () => {
+    if (Loginuser !== "admin" || moderationInfo.loading) return;
+    setModerationInfo((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch("/api/admin/moderation", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ enabled: !moderationInfo.enabled }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "更新内容检测失败");
+      }
+      setModerationInfo({ enabled: Boolean(data?.data?.enabled), loading: false, available: true });
+      toast.success(data?.message || "内容检测状态已更新");
+    } catch (error) {
+      setModerationInfo((prev) => ({ ...prev, loading: false }));
+      toast.error(error.message || "更新内容检测失败");
+    }
+  }, [Loginuser, moderationInfo]);
 
   const renderButton = () => {
     if (!isAuthapi) {
