@@ -17,6 +17,7 @@ import {
   faInbox,
   faFile,
   faVideo,
+  faShieldHalved,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { ToastContainer, toast } from "react-toastify";
@@ -85,6 +86,7 @@ export default function Home() {
   const [Loginuser, setLoginuser] = useState("");
   const [boxType, setBoxtype] = useState("img");
   const [theme, setTheme] = useState("light");
+  const [moderationEnabled, setModerationEnabled] = useState(false);
 
   const parentRef = useRef(null);
 
