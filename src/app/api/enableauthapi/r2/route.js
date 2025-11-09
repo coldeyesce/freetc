@@ -278,7 +278,7 @@ export async function POST(request) {
         ratingIndex = -1;
       }
 
-      if (moderationEnabled && !isAdmin && ratingIndex >= 3) {
+      if (moderationEnabled && ratingIndex >= 3) {
         try {
           await env.IMGRS.delete(filename);
         } catch (cleanupError) {
@@ -490,4 +490,6 @@ function interpretCustomClassification(payload) {
 
   return null;
 }
+
+
 
