@@ -859,7 +859,7 @@ export default function Home() {
                 <span className={`text-sm ${mutedTextClass}`}>轻盈、稳定、随处可见</span>
               </div>
             </div>
-            <div className="hidden items-center gap-3 md:flex">
+            <div className="hidden items-center gap-4 md:flex">
               <label className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${actionButtonClass}`}>
                 <span>上传接口</span>
                 <select
@@ -867,42 +867,42 @@ export default function Home() {
                   onChange={handleSelectChange}
                   className={headerSelectClass}
                 >
-                  {/* <option value="tg">TG（会失效）</option> */}
                   <option value="tgchannel">TG Channel</option>
                   <option value="r2">R2</option>
-                  {/* <option value="58img">58 图床</option> */}
                 </select>
               </label>
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
-                  isDark ? "border-white/15 bg-white/5 text-white hover:border-blue-400/60" : "border-slate-200 bg-white text-slate-700 shadow-sm hover:border-blue-400/60"
-                }`}
-              >
-                <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
-                {isDark ? "浅色模式" : "暗色模式"}
-              </button>
-              {isAdmin ? (
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleModerationToggle}
-                  className={`${moderationButtonClass} ${moderationLoading ? "opacity-70" : ""}`}
-                  disabled={moderationLoading}
+                  onClick={toggleTheme}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${isDark ? "border-white/15 bg-white/5 text-white hover:border-blue-400/60" : "border-slate-200 bg-white text-slate-700 shadow-sm hover:border-blue-400/60"}`}
                 >
-                  <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
-                  {moderationEnabled ? "内容检测已开启" : "开启内容检测"}
+                  <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
+                  {isDark ? "浅色模式" : "暗色模式"}
                 </button>
-              ) : (
-                <span
-                  className={`rounded-full border px-4 py-2 text-xs font-semibold ${moderationEnabled ? "border-emerald-300 text-emerald-500" : isDark ? "border-white/15 text-slate-300" : "border-slate-200 text-slate-500"}`}
-                >
-                  内容检测：{moderationEnabled ? "已开启" : "未开启"}
-                </span>
-              )}
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={handleModerationToggle}
+                    className={`${moderationButtonClass} ${moderationLoading ? "opacity-70" : ""}`}
+                    disabled={moderationLoading}
+                  >
+                    <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
+                    {moderationEnabled ? "内容检测已开启" : "开启内容检测"}
+                  </button>
+                ) : (
+                  <span
+                    className={`rounded-full border px-4 py-2 text-xs font-semibold ${moderationEnabled ? "border-emerald-300 text-emerald-500" : isDark ? "border-white/15 text-slate-300" : "border-slate-200 text-slate-500"}`}
+                  >
+                    内容检测：{moderationEnabled ? "已开启" : "未开启"}
+                  </span>
+                )}
+                {renderButton()}
+              </div>
             </div>
           </div>
         </header>
+
 
         <div className="relative z-20 flex-1 px-4 pb-24">
           <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 pt-12">
