@@ -415,40 +415,75 @@ async function get_nowTime() {
 
 async function getRating(env, url) {
   try {
-    const apikey = env.ModerateContentApiKey;
-    const moderateContentUrl = apikey ? `https://api.moderatecontent.com/moderate/?key=${apikey}&` : "";
-    const ratingApi = env.RATINGAPI ? `${env.RATINGAPI}?` : moderateContentUrl;
+    const customApi = (env.RATINGAPI || "").trim();
+    if (customApi) {
+      const target = buildRatingUrl(customApi, url);
+      const res = await fetch(target);
+      if (!res.ok) {
+        throw new Error(`Custom rating API responded with ${res.status}`);
+      }
+      const data = await res.json();
+      const interpretedScore = interpretCustomClassification(data);
+      if (typeof interpretedScore === "number") {
+        return interpretedScore;
+      }
+      if (Object.prototype.hasOwnProperty.call(data, "rating_index")) {
+        return data.rating_index;
+      }
+    }
 
-    if (ratingApi) {
-      const res = await fetch(`${ratingApi}url=${url}`);
+    const apikey = (env.ModerateContentApiKey || "").trim();
+    if (apikey) {
+      const res = await fetch(`https://api.moderatecontent.com/moderate/?key=${apikey}&url=${encodeURIComponent(url)}`);
+      if (!res.ok) {
+        throw new Error(`ModerateContent responded with ${res.status}`);
+      }
       const data = await res.json();
       return Object.prototype.hasOwnProperty.call(data, "rating_index") ? data.rating_index : -1;
     }
+
     return 0;
   } catch (error) {
+    console.error("getRating error:", error);
     return -1;
   }
 }
 
+function buildRatingUrl(base, url) {
+  const hasQuery = base.includes("?");
+  const endsWithConnector = hasQuery && /[?&]$/.test(base);
+  const connector = hasQuery ? (endsWithConnector ? "" : "&") : "?";
+  return `${base}${connector}url=${encodeURIComponent(url)}`;
+}
 
+function interpretCustomClassification(payload) {
+  if (Array.isArray(payload)) {
+    const scores = payload.reduce((acc, item) => {
+      const key = typeof item?.className === "string" ? item.className.toLowerCase() : "";
+      const probability = Number(item?.probability) || 0;
+      if (key) acc[key] = probability;
+      return acc;
+    }, {});
 
+    const pornScore = scores.porn ?? 0;
+    const hentaiScore = scores.hentai ?? 0;
+    const sexyScore = scores.sexy ?? 0;
 
+    if (pornScore >= 0.6) return 4;
+    if (hentaiScore >= 0.55) return 3;
+    if (sexyScore >= 0.7) return 2;
+    return 0;
+  }
 
+  if (payload && typeof payload === "object") {
+    if (Array.isArray(payload.data)) {
+      return interpretCustomClassification(payload.data);
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "rating_index")) {
+      return payload.rating_index;
+    }
+  }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return null;
+}
 
