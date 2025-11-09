@@ -416,9 +416,9 @@ export default function Admin() {
           <div className={`absolute bottom-28 left-12 h-[240px] w-[240px] rounded-full ${heroGlowLeft} blur-[150px]`} />
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 pt-0 pb-10">
+        <div className="relative z-10 w-full px-4 pt-0 pb-10">
           <header
-            className={`rounded-[32px] border ${surfaceClass} p-6 ${
+            className={`w-full rounded-[32px] border ${surfaceClass} p-6 ${
               isDark
                 ? "bg-gradient-to-r from-slate-950/80 via-slate-900/60 to-slate-950/80"
                 : "bg-gradient-to-r from-white via-blue-50/60 to-white"
@@ -482,7 +482,8 @@ export default function Admin() {
               </div>
             </div>
           </div>
-          <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
+          <div className="mx-auto w-full max-w-6xl space-y-8">
+            <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
             <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex w-full flex-col gap-3">
                 <form onSubmit={handleSearch} className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
@@ -653,6 +654,7 @@ export default function Admin() {
               </div>
             </div>
           </section>
+          </div>
         </div>
 
         <ToastContainer position="bottom-right" theme={isDark ? "dark" : "light"} />
