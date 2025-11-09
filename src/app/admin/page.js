@@ -456,16 +456,32 @@ export default function Admin() {
                 </button>
               </div>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              {stats.map((item) => (
-                <div key={item.label} className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-blue-300/80">{item.label}</p>
-                  <p className="mt-1 text-xl font-semibold">{item.value}</p>
-                  <p className={`text-[11px] ${mutedTextClass}`}>{item.description}</p>
-                </div>
-              ))}
-            </div>
           </header>
+
+          <div
+            className={`w-full rounded-[32px] border ${surfaceClass} p-6 shadow-[0_35px_80px_-30px_rgba(15,23,42,0.5)]`}
+          >
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-200/90">素材概览</p>
+                <p className={`text-sm ${mutedTextClass}`}>持续同步全局筛选与日夜主题</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                {stats.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex flex-col gap-2 rounded-[20px] border border-white/10 bg-white/5 px-5 py-4 shadow-[0_12px_30px_-15px_rgba(15,23,42,0.7)]"
+                  >
+                    <span className="text-[11px] uppercase tracking-[0.35em] text-blue-400/90">
+                      {item.label}
+                    </span>
+                    <span className="text-3xl font-semibold">{item.value}</span>
+                    <span className={`text-xs ${mutedTextClass}`}>{item.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
             <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex w-full flex-col gap-3">
