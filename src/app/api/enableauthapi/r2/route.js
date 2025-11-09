@@ -418,7 +418,9 @@ async function getRating(env, url) {
     const customApi = (env.RATINGAPI || "").trim();
     if (customApi) {
       const target = buildRatingUrl(customApi, url);
-      const res = await fetch(target);
+      const res = await fetch(target, {
+        headers: moderationRequestHeaders(),
+      });
       if (!res.ok) {
         throw new Error(`Custom rating API responded with ${res.status}`);
       }
@@ -434,7 +436,9 @@ async function getRating(env, url) {
 
     const apikey = (env.ModerateContentApiKey || "").trim();
     if (apikey) {
-      const res = await fetch(`https://api.moderatecontent.com/moderate/?key=${apikey}&url=${encodeURIComponent(url)}`);
+      const res = await fetch(`https://api.moderatecontent.com/moderate/?key=${apikey}&url=${encodeURIComponent(url)}`, {
+        headers: moderationRequestHeaders(),
+      });
       if (!res.ok) {
         throw new Error(`ModerateContent responded with ${res.status}`);
       }
@@ -448,6 +452,7 @@ async function getRating(env, url) {
     return -1;
   }
 }
+
 
 function buildRatingUrl(base, url) {
   const trimmed = base.trim();
@@ -492,4 +497,12 @@ function interpretCustomClassification(payload) {
 }
 
 
+
+
+function moderationRequestHeaders() {
+  return {
+    Accept: "application/json",
+    "User-Agent": "FreeTC-Moderation/1.0",
+  };
+}
 
