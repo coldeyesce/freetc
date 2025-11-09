@@ -458,8 +458,9 @@ export default function Admin() {
             </div>
           </header>
 
+          <div className="mx-auto w-full max-w-6xl space-y-8">
           <div
-            className={`w-full rounded-[32px] border ${surfaceClass} p-6 shadow-[0_35px_80px_-30px_rgba(15,23,42,0.5)]`}
+            className={`rounded-[32px] border ${surfaceClass} p-6 shadow-[0_35px_80px_-30px_rgba(15,23,42,0.35)]`}
           >
             <div className="flex flex-col gap-3">
               <div>
@@ -482,7 +483,6 @@ export default function Admin() {
               </div>
             </div>
           </div>
-          <div className="mx-auto w-full max-w-6xl space-y-8">
             <section className={`rounded-[28px] border ${surfaceClass} p-6`}>
             <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex w-full flex-col gap-3">
