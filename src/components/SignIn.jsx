@@ -107,7 +107,7 @@ export function LoginPage() {
             </span>
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-blue-300">
-                Telegraph Image
+                Free Tc
               </p>
               <h1 className="mt-1 text-2xl font-semibold">登录你的账号</h1>
             </div>
