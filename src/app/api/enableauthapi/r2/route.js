@@ -3,7 +3,6 @@
 import { auth } from "@/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { getQuotaLimits, getBooleanConfig } from "@/lib/config";
-import { toast } from "react-toastify";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,7 +112,8 @@ const determineKindTag = (fileType, filename) => {
 
 export async function POST(request) {
   const { env } = getRequestContext();
-  toast.info('env...->'+ env)
+
+  console.warn("env:", env);
 
   if (!env.IMGRS) {
     return Response.json(
@@ -272,8 +272,8 @@ export async function POST(request) {
     const shouldRate = hasModerationService;
     let ratingIndex = 0;
 
-    toast.info(hasModerationService)
-    toast.info(shouldRate)
+    console.warn("shouldRate:", shouldRate);
+
     if (shouldRate) {
       try {
         ratingIndex = await getRating(env, fileUrl);
@@ -419,11 +419,11 @@ async function get_nowTime() {
 
 async function getRating(env, url) {
   try {
-
+    console.warn("url:", url);
     const customApi = (env.RATINGAPI || "").trim();
     if (customApi) {
       const target = buildRatingUrl(customApi, url);
-      toast.info('target->'+ target)
+      console.warn("buildRatingUrl:", target);
       const res = await fetch(target, {
         headers: moderationRequestHeaders(),
       });
