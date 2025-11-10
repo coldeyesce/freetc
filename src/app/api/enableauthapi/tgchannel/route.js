@@ -1,6 +1,13 @@
 ﻿export const runtime = 'edge';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { getBooleanConfig } from '@/lib/config';
+import {
+  ensureUploadLogsTable,
+  ensureIpBlockTable,
+  isIpBlocked,
+  recordUploadLog,
+  maybeAutoBlockIp,
+} from '@/lib/uploadLogs';
 
 
 
@@ -48,6 +55,9 @@ async function saveTelegramMeta(db, { fileId, fileName, messageId, chatId }) {
 
 export async function POST(request) {
 	const { env, cf, ctx } = getRequestContext();
+	let logUploadEvent = async () => {};
+	let capturedFileName = "";
+	const storageLabel = "tg";
 	
 	if (!env.TG_BOT_TOKEN || !env.TG_CHAT_ID) {
 		return Response.json({
@@ -69,7 +79,35 @@ export async function POST(request) {
 
 	const formData = await request.formData();
 	const uploadFile = formData.get('file');
+	const originalFileName = typeof uploadFile?.name === "string" ? uploadFile.name : "";
+	capturedFileName = originalFileName || `tg-upload-${Date.now()}`;
+
+	if (env.IMG) {
+		await ensureUploadLogsTable(env.IMG);
+		await ensureIpBlockTable(env.IMG);
+	}
+
+	logUploadEvent = async ({ fileName = capturedFileName, status = "success", compliant = true, message: logMessage = "", ratingValue = null } = {}) => {
+		if (!env.IMG) return;
+		try {
+			const rating = typeof ratingValue === "number" && Number.isFinite(ratingValue) ? ratingValue : null;
+			await recordUploadLog(env.IMG, {
+				fileName,
+				storage: storageLabel,
+				ip: clientIp,
+				referer: Referer,
+				rating,
+				compliant,
+				status,
+				message: logMessage,
+			});
+		} catch (logError) {
+			console.error("tg logUploadEvent error:", logError);
+		}
+	};
+
 	if (!uploadFile || typeof uploadFile !== "object" || typeof uploadFile.stream !== "function") {
+		await logUploadEvent({ status: "error", compliant: false, message: "未提供有效文件" });
 		return Response.json(
 			{
 				status: 400,
@@ -82,8 +120,30 @@ export async function POST(request) {
 			},
 		);
 	}
+
+	if (env.IMG) {
+		const blockedInfo = await isIpBlocked(env.IMG, clientIp);
+		if (blockedInfo) {
+			await logUploadEvent({
+				status: "blocked",
+				compliant: false,
+				message: blockedInfo.reason || "当前 IP 已被限制上传",
+			});
+			return Response.json(
+				{
+					status: 423,
+					message: blockedInfo.reason || "当前 IP 已被限制上传",
+					success: false,
+				},
+				{
+					status: 423,
+					headers: corsHeaders,
+				},
+			);
+		}
+	}
 	const fileType = uploadFile.type || "";
-	const originalFileName = typeof uploadFile.name === "string" ? uploadFile.name : "";
+
 
 	const req_url = new URL(request.url);
 
@@ -121,6 +181,7 @@ export async function POST(request) {
 		const fileData = await getFile(responseData);
 
 		if (!fileData?.file_id) {
+			await logUploadEvent({ status: "error", compliant: true, message: "Telegram 返回数据不完整" });
 			return Response.json(
 				{
 					status: 502,
@@ -149,6 +210,16 @@ export async function POST(request) {
 						console.warn("Failed to delete Telegram message after moderation rejection:", cleanupError);
 					}
 				}
+				await logUploadEvent({
+					status: "blocked",
+					compliant: false,
+					ratingValue: rating_index,
+					message: "内容检测未通过",
+				});
+				if (env.IMG) {
+					await maybeAutoBlockIp(env.IMG, clientIp);
+				}
+
 				return Response.json(
 					{
 						status: 422,
@@ -194,6 +265,12 @@ export async function POST(request) {
 					chatId: env.TG_CHAT_ID,
 				});
 
+				await logUploadEvent({
+					status: "success",
+					compliant: rating_index < 3,
+					ratingValue: rating_index,
+				});
+
 				return Response.json({
 					...data,
 					msg: "2",
@@ -207,6 +284,7 @@ export async function POST(request) {
 				})
 
 			} catch (error) {
+			await logUploadEvent({ status: "error", compliant: true, message: error.message || "上传失败" });
 				console.log(error);
 				await insertImageData(env.IMG, `/cfile/${fileData.file_id}`, Referer, clientIp, -1, nowTime);
 				await saveTelegramMeta(env.IMG, {
@@ -232,6 +310,7 @@ export async function POST(request) {
 
 
 	} catch (error) {
+		await logUploadEvent({ status: "error", compliant: true, message: error.message || "上传失败" });
 		return Response.json({
 			status: 500,
 			message: ` ${error.message}`,

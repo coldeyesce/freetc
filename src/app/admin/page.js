@@ -8,6 +8,7 @@ import {
   faArrowRightArrowLeft,
   faChartLine,
   faCircleHalfStroke,
+  faClipboardList,
   faGaugeHigh,
   faHouse,
   faMagnifyingGlass,
@@ -445,6 +446,10 @@ export default function Admin() {
                 <Link href="/admin/monitor" className={subtleButtonClass}>
                   <FontAwesomeIcon icon={faChartLine} className="h-4 w-4" />
                   查看监控面板
+                </Link>
+                <Link href="/admin/logs" className={subtleButtonClass}>
+                  <FontAwesomeIcon icon={faClipboardList} className="h-4 w-4" />
+                  查看上传日志
                 </Link>
                 <Link href="/" className={subtleButtonClass}>
                   <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />

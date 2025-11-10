@@ -3,6 +3,14 @@
 import { auth } from "@/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { getQuotaLimits, getBooleanConfig } from "@/lib/config";
+import {
+  ensureUploadLogsTable,
+  ensureIpBlockTable,
+  isIpBlocked,
+  recordUploadLog,
+  maybeAutoBlockIp,
+} from "@/lib/uploadLogs";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,12 +121,16 @@ const determineKindTag = (fileType, filename) => {
 export async function POST(request) {
   const { env } = getRequestContext();
 
+  let logUploadEvent = async () => {};
+  let capturedFileName = "";
+  const storageLabel = "r2";
+
   if (!env.IMGRS) {
     return Response.json(
       {
         status: 500,
-        message: "内容检测未通过，请更换文件后再试。",
-            success: false,
+        message: "对象存储未配置，请联系管理员。",
+        success: false,
       },
       {
         status: 500,
@@ -152,18 +164,74 @@ export async function POST(request) {
   const formData = await request.formData();
   const fileEntries = formData.getAll("file").filter(Boolean);
   const fileField = fileEntries[0];
+  const filename = fileField?.name || `upload-${Date.now()}`;
+  capturedFileName = filename;
+
+  if (env.IMG) {
+    await ensureUploadLogsTable(env.IMG);
+    await ensureIpBlockTable(env.IMG);
+  }
+
+  logUploadEvent = async ({
+    fileName = capturedFileName || filename || `r2-upload-${Date.now()}` ,
+    status = "success",
+    compliant = true,
+    message: logMessage = "",
+    ratingValue = null,
+  } = {}) => {
+    if (!env.IMG) return;
+    try {
+      const rating = typeof ratingValue === "number" && Number.isFinite(ratingValue) ? ratingValue : null;
+      await recordUploadLog(env.IMG, {
+        fileName,
+        storage: storageLabel,
+        ip: clientIp,
+        referer,
+        rating,
+        compliant,
+        status,
+        message: logMessage,
+      });
+    } catch (logError) {
+      console.error("logUploadEvent error:", logError);
+    }
+  };
+
   if (!fileField) {
+    await logUploadEvent({ status: "error", compliant: false, message: "未提供文件" });
     return Response.json(
       {
         status: 400,
-        message: "内容检测未通过，请更换文件后再试。",
-            success: false,
+        message: "请先选择需要上传的文件。",
+        success: false,
       },
       {
         status: 400,
         headers: corsHeaders,
       },
     );
+  }
+
+  if (env.IMG) {
+    const blockedInfo = await isIpBlocked(env.IMG, clientIp);
+    if (blockedInfo) {
+      await logUploadEvent({
+        status: "blocked",
+        compliant: false,
+        message: blockedInfo.reason || "当前 IP 已被限制上传",
+      });
+      return Response.json(
+        {
+          status: 423,
+          message: blockedInfo.reason || "当前 IP 已被限制上传",
+          success: false,
+        },
+        {
+          status: 423,
+          headers: corsHeaders,
+        },
+      );
+    }
   }
 
   if (!isAdmin && env.IMG) {
@@ -173,11 +241,12 @@ export async function POST(request) {
     const userLimit = limits.user ?? 15;
 
     if (!isRegular && fileEntries.length > 1) {
+      await logUploadEvent({ status: "error", compliant: false, message: "访客禁止批量上传" });
       return Response.json(
         {
           status: 400,
-          message: "内容检测未通过，请更换文件后再试。",
-            success: false,
+          message: "访客模式下暂不支持批量上传，请逐个添加文件。",
+        success: false,
         },
         {
           status: 400,
@@ -192,6 +261,7 @@ export async function POST(request) {
         .bind(anonymousIdentity)
         .first();
       if (anonymousLimit > 0 && quota && Number(quota.count) >= anonymousLimit) {
+        await logUploadEvent({ status: "blocked", compliant: true, message: "访客上传次数已达上限" });
         return Response.json(
           {
             status: 429,
@@ -210,6 +280,7 @@ export async function POST(request) {
         .bind(regularIdentity, dayKey)
         .first();
       if (userLimit > 0 && quota && Number(quota.count) >= userLimit) {
+        await logUploadEvent({ status: "blocked", compliant: true, message: "今日上传次数已达上限" });
         return Response.json(
           {
             status: 429,
@@ -226,7 +297,6 @@ export async function POST(request) {
   }
 
   const fileType = fileField.type || "";
-  const filename = fileField.name || `upload-${Date.now()}`;
   const customTags = formData.get("tags") || "";
 
   const kindTag = determineKindTag(fileType, filename);
@@ -244,11 +314,12 @@ export async function POST(request) {
     });
 
     if (!object) {
+      await logUploadEvent({ status: "error", compliant: false, message: "对象存储写入失败" });
       return Response.json(
         {
           status: 404,
-          message: "内容检测未通过，请更换文件后再试。",
-            success: false,
+          message: "对象存储写入失败，请稍后再试。",
+        success: false,
         },
         {
           status: 404,
@@ -283,6 +354,15 @@ export async function POST(request) {
           await env.IMGRS.delete(filename);
         } catch (cleanupError) {
           console.warn("Failed to delete object after moderation rejection:", cleanupError);
+        }
+        await logUploadEvent({
+          status: "blocked",
+          compliant: false,
+          ratingValue: ratingIndex,
+          message: "内容检测未通过",
+        });
+        if (env.IMG) {
+          await maybeAutoBlockIp(env.IMG, clientIp);
         }
         return Response.json(
           {
@@ -341,6 +421,12 @@ export async function POST(request) {
         }
       }
 
+      await logUploadEvent({
+        status: "success",
+        compliant: ratingIndex < 3,
+        ratingValue: ratingIndex,
+      });
+
       return Response.json(
         {
           ...responsePayload,
@@ -358,6 +444,12 @@ export async function POST(request) {
     } catch (error) {
       console.error("Insert image data failed:", error);
       await insertImageData(env.IMG, `/rfile/${filename}`, referer, clientIp, -1, nowTime, storageString);
+      await logUploadEvent({
+        status: "error",
+        compliant: ratingIndex < 3,
+        ratingValue: ratingIndex,
+        message: error.message || "写入数据库失败",
+      });
       return Response.json(
         {
           ...responsePayload,
@@ -370,6 +462,7 @@ export async function POST(request) {
       );
     }
   } catch (error) {
+    await logUploadEvent({ status: "error", compliant: true, message: error.message || "上传失败" });
     return Response.json(
       {
         status: 500,
