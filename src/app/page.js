@@ -966,7 +966,7 @@ export default function Home() {
                 <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
                 {isDark ? "浅色模式" : "暗色模式"}
               </button>
-              {renderModerationControl("desktop")}
+
               {renderButton()}
             </div>
           </div>
@@ -1015,7 +1015,7 @@ export default function Home() {
                     <FontAwesomeIcon icon={isDark ? faSun : faMoon} className="h-4 w-4" />
                     {isDark ? "浅色模式" : "暗色模式"}
                   </button>
-                  {renderModerationControl("mobile")}
+                  
                   <div className="flex w-full justify-start">
                     {renderButton()}
                   </div>
