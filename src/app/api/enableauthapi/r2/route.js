@@ -112,7 +112,7 @@ const determineKindTag = (fileType, filename) => {
 
 export async function POST(request) {
   const { env } = getRequestContext();
-  console.log('env...->', env)
+  alert('env...->', env)
 
   if (!env.IMGRS) {
     return Response.json(
@@ -271,6 +271,8 @@ export async function POST(request) {
     const shouldRate = hasModerationService;
     let ratingIndex = 0;
 
+    alert(hasModerationService)
+    alert(shouldRate)
     if (shouldRate) {
       try {
         ratingIndex = await getRating(env, fileUrl);
