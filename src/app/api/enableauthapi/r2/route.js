@@ -113,8 +113,6 @@ const determineKindTag = (fileType, filename) => {
 export async function POST(request) {
   const { env } = getRequestContext();
 
-  console.error("env:", env);
-
   if (!env.IMGRS) {
     return Response.json(
       {
@@ -272,8 +270,6 @@ export async function POST(request) {
     const shouldRate = hasModerationService;
     let ratingIndex = 0;
 
-    console.warn("shouldRate:", shouldRate);
-
     if (shouldRate) {
       try {
         ratingIndex = await getRating(env, fileUrl);
@@ -419,11 +415,9 @@ async function get_nowTime() {
 
 async function getRating(env, url) {
   try {
-    console.warn("url:", url);
     const customApi = (env.RATINGAPI || "").trim();
     if (customApi) {
       const target = buildRatingUrl(customApi, url);
-      console.warn("buildRatingUrl:", target);
       const res = await fetch(target, {
         headers: moderationRequestHeaders(),
       });
@@ -491,9 +485,6 @@ function interpretCustomClassification(payload) {
 
   return null;
 }
-
-
-
 
 function moderationRequestHeaders() {
   return {

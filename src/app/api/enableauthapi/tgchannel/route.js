@@ -350,29 +350,84 @@ async function get_nowTime() {
 
 
 
-async function getRating(env, url) {
-
+async function getRating(env, fileId) {
 	try {
-		const file_path = await getFile_path(env, url);
+		const filePath = await getFile_path(env, fileId);
+		if (!filePath) {
+			throw new Error("Failed to resolve Telegram file path");
+		}
+		const assetUrl = `https://api.telegram.org/file/bot${env.TG_BOT_TOKEN}/${filePath}`;
 
-		const apikey = env.ModerateContentApiKey
-		const ModerateContentUrl = apikey ? `https://api.moderatecontent.com/moderate/?key=${apikey}&` : ""
-
-		const ratingApi = env.RATINGAPI ? `${env.RATINGAPI}?` : ModerateContentUrl;
-
-		if (ratingApi) {
-			const res = await fetch(`${ratingApi}url=https://api.telegram.org/file/bot${env.TG_BOT_TOKEN}/${file_path}`);
+		const customApi = (env.RATINGAPI || "").trim();
+		if (customApi) {
+			const target = buildRatingUrl(customApi, assetUrl);
+			const res = await fetch(target, { headers: moderationRequestHeaders() });
+			if (!res.ok) {
+				throw new Error(`Custom rating API responded with ${res.status}`);
+			}
 			const data = await res.json();
-			const rating_index = data.hasOwnProperty('rating_index') ? data.rating_index : -1;
-
-			return rating_index;
-		} else {
-			return 0
+			const interpretedScore = interpretCustomClassification(data);
+			if (typeof interpretedScore === "number") {
+				return interpretedScore;
+			}
+			if (Object.prototype.hasOwnProperty.call(data, "rating_index")) {
+				return data.rating_index;
+			}
 		}
 
+		const apikey = (env.ModerateContentApiKey || "").trim();
+		if (apikey) {
+			const res = await fetch(`https://api.moderatecontent.com/moderate/?key=${apikey}&url=${encodeURIComponent(assetUrl)}`, { headers: moderationRequestHeaders() });
+			if (!res.ok) {
+				throw new Error(`ModerateContent responded with ${res.status}`);
+			}
+			const data = await res.json();
+			return Object.prototype.hasOwnProperty.call(data, "rating_index") ? data.rating_index : -1;
+		}
 
+		return 0;
 	} catch (error) {
-		return -1
+		console.error("tgchannel getRating error:", error);
+		return -1;
 	}
+}
+
+function buildRatingUrl(base, url) {
+	const trimmed = base.trim();
+	if (trimmed.endsWith("url=")) {
+		return `${trimmed}${encodeURIComponent(url)}`;
+	}
+	const hasQuery = trimmed.includes("?");
+	const endsWithConnector = hasQuery && /[?&]$/.test(trimmed);
+	const connector = hasQuery ? (endsWithConnector ? "" : "&") : "?";
+	return `${trimmed}${connector}url=${encodeURIComponent(url)}`;
+}
+
+function interpretCustomClassification(payload) {
+	if (Array.isArray(payload)) {
+		const pornEntry = payload.find(
+			(item) => typeof item?.className === "string" && item.className.toLowerCase() === "porn",
+		);
+		const pornScore = Number(pornEntry?.probability) || 0;
+		return pornScore >= 0.6 ? 4 : 0;
+	}
+
+	if (payload && typeof payload === "object") {
+		if (Array.isArray(payload.data)) {
+			return interpretCustomClassification(payload.data);
+		}
+		if (Object.prototype.hasOwnProperty.call(payload, "rating_index")) {
+			return payload.rating_index;
+		}
+	}
+
+	return null;
+}
+
+function moderationRequestHeaders() {
+	return {
+		Accept: "application/json",
+		"User-Agent": "FreeTC-Moderation/1.0",
+	};
 }
 
