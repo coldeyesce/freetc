@@ -416,10 +416,11 @@ async function get_nowTime() {
 
 async function getRating(env, url) {
   try {
-    console.log('进入getRating...->', env, url)
+
     const customApi = (env.RATINGAPI || "").trim();
     if (customApi) {
       const target = buildRatingUrl(customApi, url);
+      alert('target->'+ target)
       const res = await fetch(target, {
         headers: moderationRequestHeaders(),
       });
