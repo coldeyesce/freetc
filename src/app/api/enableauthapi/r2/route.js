@@ -113,7 +113,7 @@ const determineKindTag = (fileType, filename) => {
 export async function POST(request) {
   const { env } = getRequestContext();
 
-  console.warn("env:", env);
+  console.error("env:", env);
 
   if (!env.IMGRS) {
     return Response.json(
