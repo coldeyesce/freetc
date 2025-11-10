@@ -118,6 +118,19 @@ const determineKindTag = (fileType, filename) => {
   return "file";
 };
 
+const makeUniqueSuffix = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+const ensureUniqueFileName = (originalName = "") => {
+  const fallback = `upload-${Date.now()}`;
+  const safeName = (originalName || fallback).trim() || fallback;
+  const sanitized = safeName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const lastDot = sanitized.lastIndexOf(".");
+  const base = lastDot > 0 ? sanitized.slice(0, lastDot) : sanitized;
+  const ext = lastDot > 0 ? sanitized.slice(lastDot) : "";
+  const suffix = makeUniqueSuffix();
+  return `${base || "upload"}-${suffix}${ext}`;
+};
+
 export async function POST(request) {
   const { env } = getRequestContext();
 
@@ -164,7 +177,8 @@ export async function POST(request) {
   const formData = await request.formData();
   const fileEntries = formData.getAll("file").filter(Boolean);
   const fileField = fileEntries[0];
-  const filename = fileField?.name || `upload-${Date.now()}`;
+  const originalFilename = fileField?.name || `upload-${Date.now()}`;
+  const filename = ensureUniqueFileName(originalFilename);
   capturedFileName = filename;
 
   if (env.IMG) {
@@ -334,6 +348,7 @@ export async function POST(request) {
       url: fileUrl,
       code: 200,
       name: filename,
+      original_name: originalFilename,
       tags: tagArray,
       rating_index: 0,
     };
