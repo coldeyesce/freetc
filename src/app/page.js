@@ -332,12 +332,14 @@ export default function Home() {
               ? `/api/enableauthapi/${selectedOption}`
               : `/api/${selectedOption}`;
 
+          console.warn('上传图片->', targetUrl)
           const response = await fetch(targetUrl, {
             method: "POST",
             body: formData,
             headers,
           });
-
+          console.warn('响应对象——》', response)
+          console.info('响应对象——》', response)
           if (response.ok) {
             const result = await response.json();
             const itemTags =
