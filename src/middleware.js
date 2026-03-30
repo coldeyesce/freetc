@@ -2,7 +2,6 @@ import { auth } from "@/auth"
 
 const LOGIN = '/login'
 const API_ADMIN = "/api/admin"
-const ADMIN_PAGE = "/admin"
 const AUTH_API = "/api/enableauthapi"
 
 export default async function middleware(req) {
@@ -13,7 +12,6 @@ export default async function middleware(req) {
 
     const isAuthenticated = !!session?.user;
     const isAPI_ADMIN = nextUrl.pathname.startsWith(API_ADMIN);
-    const isADMIN_PAGE = nextUrl.pathname.startsWith(ADMIN_PAGE);
     const isAuthAPI = nextUrl.pathname.startsWith(AUTH_API);
 
     if (!isAuthenticated) {
@@ -22,9 +20,6 @@ export default async function middleware(req) {
                 { status: "fail", message: "You are not logged in by admin !", success: false },
                 { status: 401 },
             )
-        }
-        if (isADMIN_PAGE) {
-            return Response.redirect(new URL(LOGIN, nextUrl));
         }
         if (isAuthAPI && enableAuthapi) {
             return Response.json(
@@ -39,14 +34,13 @@ export default async function middleware(req) {
         return;
     }
 
-    if (role === 'user' && (isAPI_ADMIN || isADMIN_PAGE)) {
+    if (role === 'user' && isAPI_ADMIN) {
         return Response.redirect(new URL(LOGIN, nextUrl));
     }
 }
 
 export const config = {
     matcher: [
-        "/admin/:path*",
         "/api/admin/:path*",
         "/api/enableauthapi/:path*"
     ],
