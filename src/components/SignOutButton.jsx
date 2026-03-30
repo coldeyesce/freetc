@@ -1,8 +1,8 @@
 'use client';
-import { logoutAndRedirect } from "@/lib/auth-client";
+import { signOut } from "next-auth/react"
 
 export default function SignOutButton(){
-    return <button onClick={() => logoutAndRedirect('/')}>
+    return <button onClick={() => signOut()}>
         Sign Out
     </button>
 }
