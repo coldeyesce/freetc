@@ -4,7 +4,6 @@ import {
   authenticateCredentials,
   createSessionToken,
   getSessionCookieName,
-  getClientSessionCookieName,
   getSessionCookieOptions,
 } from "@/auth";
 
@@ -65,10 +64,6 @@ async function handleCredentialsCallback(request) {
   const token = await createSessionToken(result.user);
   const response = NextResponse.json({ url: callbackUrl }, { status: 200 });
   response.cookies.set(getSessionCookieName(), token, getSessionCookieOptions());
-  response.cookies.set(getClientSessionCookieName(), token, {
-    ...getSessionCookieOptions(),
-    httpOnly: false,
-  });
   return withNoStore(response);
 }
 
@@ -86,11 +81,6 @@ async function handleSignOut(request) {
   const response = NextResponse.json({ url: callbackUrl });
   response.cookies.set(getSessionCookieName(), "", {
     ...getSessionCookieOptions(),
-    maxAge: 0,
-  });
-  response.cookies.set(getClientSessionCookieName(), "", {
-    ...getSessionCookieOptions(),
-    httpOnly: false,
     maxAge: 0,
   });
   return withNoStore(response);
