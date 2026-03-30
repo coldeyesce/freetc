@@ -67,20 +67,12 @@ export function LoginPage() {
     try {
       const result = await signIn("credentials", {
         redirect: false,
-        username: username.trim(),
-        password: password.trim(),
+        username,
+        password,
       });
 
       if (result?.error) {
-        const errorMap = {
-          CredentialsSignin: "用户名或密码不匹配，或 Cloudflare 线上部署还未读取到最新环境变量",
-          Configuration: "认证配置异常，请检查 Cloudflare 的环境变量和 SECRET 是否生效",
-          AccessDenied: "访问被拒绝，请确认账号权限配置",
-          CallbackRouteError: "登录回调异常，请检查服务端日志或认证配置",
-        };
-        const message = errorMap[result.error] || `登录失败：${result.error}`;
-        toast.error(message);
-        console.error("signIn error result:", result);
+        toast.error("用户名或密码错误，请确认后再试");
       } else {
         toast.success("登录成功，正在跳转...");
         setTimeout(() => {
@@ -122,9 +114,6 @@ export function LoginPage() {
           </div>
           <p className={`text-sm leading-6 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
             使用管理账号登录以维护上传空间。支持明暗双主题，夜间自动护眼，也可手动切换。
-          </p>
-          <p className={`text-xs leading-5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-            如果你刚修改了 Cloudflare Pages 的环境变量，请记得重新部署生产环境后再登录。
           </p>
           <button
             type="button"

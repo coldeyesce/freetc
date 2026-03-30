@@ -96,7 +96,6 @@ npm install
 | `BASIC_USER` / `BASIC_PASS` | ✅ | 管理员登录账号/密码（NextAuth） |
 | `REGULAR_USER` / `REGULAR_PASS` | ✅ | 受限普通用户账号/密码（上传配额 15 次/天） |
 | `SECRET` | ✅ | NextAuth/加密密钥，建议使用 `openssl rand -base64 32` 生成 |
-| `AUTH_DEBUG_TOKEN` | ⚙️ | 认证调试令牌。配置后可访问 `/api/auth-status?token=...` 查看是否成功读取到登录相关环境变量（只返回布尔值/长度，不返回明文） |
 | `ENABLE_AUTH_API` | ⚙️ | `true/false`，控制是否强制登录后才能使用上传 API |
 | `TG_BOT_TOKEN` / `TG_CHAT_ID` | ⚙️ | Telegram Bot Token 与频道 ID，启用 TG 上传/删除功能必填 |
 | `PROXYALLIMG` | ⚙️ | `true` 时 `/api/file/*` 会代理 Telegraph，并缓存到本地 R2 |
@@ -116,13 +115,10 @@ REGULAR_USER=user
 REGULAR_PASS=user123
 SECRET=00Fv/YUm0enwy04IgP4KoNOWLODe2iJ1tvBzr+4kEZ8=
 ENABLE_AUTH_API=true
-AUTH_DEBUG_TOKEN=replace-with-a-random-token
 TG_BOT_TOKEN=123456:ABC-DEF
 TG_CHAT_ID=-1001234567890
 RATINGAPI=https://nsfwapi.example.com/api/nsfw/classify
 ```
-
-> 修改 Cloudflare Pages 的环境变量后，请重新部署 Production，否则线上运行时可能仍然使用旧值。
 
 ---
 
