@@ -33,7 +33,6 @@ export default function Admin() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [authChecked, setAuthChecked] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [jumpPage, setJumpPage] = useState("1");
@@ -156,42 +155,8 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const validateAdminSession = async () => {
-      try {
-        const response = await fetch('/api/enableauthapi/isauth', {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        const data = await response.json().catch(() => ({}));
-        if (cancelled) return;
-
-        if (!response.ok || data?.role !== 'admin') {
-          window.location.href = '/login';
-          return;
-        }
-
-        setAuthChecked(true);
-      } catch (error) {
-        console.error('admin auth probe failed', error);
-        if (!cancelled) {
-          window.location.href = '/login';
-        }
-      }
-    };
-
-    validateAdminSession();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!authChecked) return;
     fetchTags();
-  }, [authChecked, fetchTags]);
+  }, [fetchTags]);
 
   const fetchList = useCallback(async (page, query) => {
     setLoading(true);
@@ -232,9 +197,8 @@ export default function Admin() {
   }, [pageSize, activeTag, fetchTags]);
 
   useEffect(() => {
-    if (!authChecked) return;
     fetchList(currentPage, searchQuery);
-  }, [authChecked, currentPage, searchQuery, fetchList]);
+  }, [currentPage, searchQuery, fetchList]);
 
   useEffect(() => {
     setJumpPage(String(currentPage));
@@ -443,10 +407,6 @@ export default function Admin() {
     },
     [activeTag, currentPage, currentTagLabel, pageSize, searchQuery, totalItems, totalPages],
   );
-
-  if (!authChecked) {
-    return <LoadingOverlay loading={true} />;
-  }
 
   return (
     <main className={`min-h-screen w-full overflow-x-hidden ${pageBackground}`}>
