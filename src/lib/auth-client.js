@@ -4,7 +4,7 @@ export async function loginWithPassword({ username, password }) {
     headers: {
       "Content-Type": "application/json",
     },
-    credentials: "include",
+    credentials: "same-origin",
     body: JSON.stringify({ username, password }),
   });
 
@@ -16,22 +16,11 @@ export async function loginWithPassword({ username, password }) {
   };
 }
 
-export function writeClientSessionCookie(name, token) {
-  if (typeof document === "undefined" || !name || !token) return;
-  document.cookie = `${name}=${token}; Path=/; Max-Age=${24 * 60 * 60}; SameSite=Lax; Secure`;
-}
-
-export function clearClientSessionCookie(name) {
-  if (typeof document === "undefined" || !name) return;
-  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
-}
-
 export async function logoutAndRedirect(callbackUrl = "/") {
   await fetch("/api/logout", {
     method: "POST",
-    credentials: "include",
+    credentials: "same-origin",
   }).catch(() => null);
-  clearClientSessionCookie("freetc_session_client");
   if (typeof window !== "undefined") {
     window.location.href = callbackUrl;
   }

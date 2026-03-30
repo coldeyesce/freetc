@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { loginWithPassword, writeClientSessionCookie } from "@/lib/auth-client";
+import { loginWithPassword } from "@/lib/auth-client";
 import { ToastContainer, toast } from "react-toastify";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faImages, faMoon, faSun } from "@fortawesome/free-solid-svg-icons";
@@ -82,9 +82,6 @@ export function LoginPage() {
         toast.error(message);
         console.error("login error result:", result);
       } else {
-        if (result.sessionToken && result.clientCookieName) {
-          writeClientSessionCookie(result.clientCookieName, result.sessionToken);
-        }
         const target = result.role === "admin" ? "/admin" : "/";
         toast.success("登录成功，正在跳转...");
         setTimeout(() => {
