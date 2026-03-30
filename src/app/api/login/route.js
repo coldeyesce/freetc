@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateCredentials, createSessionToken, getSessionCookieName, getSessionCookieOptions } from "@/auth";
+import { authenticateCredentials, createSessionToken, getSessionCookieName, getSessionCookieOptions, getClientSessionCookieName } from "@/auth";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function POST(request) {
   }
 
   const token = await createSessionToken(result.user);
-  const response = NextResponse.json({ ok: true, role: result.user.role });
+  const response = NextResponse.json({ ok: true, role: result.user.role, sessionToken: token, clientCookieName: getClientSessionCookieName() });
   response.cookies.set(getSessionCookieName(), token, getSessionCookieOptions());
   return response;
 }

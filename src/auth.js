@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { getAuthConfig, getAuthDiagnostics, normalizeSubmittedCredentials } from "@/lib/auth-config";
 
 const COOKIE_NAME = "freetc_session";
+const CLIENT_COOKIE_NAME = "freetc_session_client";
 const SESSION_MAX_AGE = 24 * 60 * 60;
 const FALLBACK_SECRET = "00Fv/YUm0enwy04IgP4KoNOWLODe2iJ1tvBzr+4kEZ8=";
 const encoder = new TextEncoder();
@@ -88,6 +89,10 @@ export function getSessionCookieName() {
   return COOKIE_NAME;
 }
 
+export function getClientSessionCookieName() {
+  return CLIENT_COOKIE_NAME;
+}
+
 export function getSessionCookieOptions() {
   return {
     httpOnly: true,
@@ -99,7 +104,9 @@ export function getSessionCookieOptions() {
 }
 
 export async function auth(request) {
-  const token = request?.cookies?.get?.(COOKIE_NAME)?.value ?? cookies().get(COOKIE_NAME)?.value;
+  const serverToken = request?.cookies?.get?.(COOKIE_NAME)?.value ?? cookies().get(COOKIE_NAME)?.value;
+  const clientToken = request?.cookies?.get?.(CLIENT_COOKIE_NAME)?.value ?? cookies().get(CLIENT_COOKIE_NAME)?.value;
+  const token = serverToken || clientToken;
   const session = await readSessionToken(token);
   if (!session) return null;
   return { user: session };
