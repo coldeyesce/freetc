@@ -1,7 +1,7 @@
 ﻿"use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { logoutAndRedirect } from "@/lib/auth-client";
 import { ToastContainer, toast } from "react-toastify";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -455,7 +455,7 @@ export default function Admin() {
                   <FontAwesomeIcon icon={faHouse} className="h-4 w-4" />
                   返回首页
                 </Link>
-                <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className={primaryButtonClass}>
+                <button type="button" onClick={() => logoutAndRedirect("/")} className={primaryButtonClass}>
                   <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
                   退出登录
                 </button>

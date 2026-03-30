@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { signOut } from "next-auth/react";
+import { logoutAndRedirect } from "@/lib/auth-client";
 import Image from "next/image";
 import {
   faImages,
@@ -776,7 +776,7 @@ export default function Home() {
   };
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: "/" });
+    logoutAndRedirect("/");
   };
 
   const handleModerationToggle = useCallback(async () => {
