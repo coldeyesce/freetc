@@ -96,6 +96,7 @@ npm install
 | `BASIC_USER` / `BASIC_PASS` | ✅ | 管理员登录账号/密码（NextAuth） |
 | `REGULAR_USER` / `REGULAR_PASS` | ✅ | 受限普通用户账号/密码（上传配额 15 次/天） |
 | `SECRET` | ✅ | NextAuth/加密密钥，建议使用 `openssl rand -base64 32` 生成 |
+| `AUTH_URL` | ⚙️ | 建议填写线上正式访问地址（如 `https://your-domain.example`），用于 Cloudflare/反代场景下稳定处理认证回调与 CSRF |
 | `AUTH_DEBUG_TOKEN` | ⚙️ | 认证调试令牌。配置后可访问 `/api/auth-status?token=...` 查看是否成功读取到登录相关环境变量（只返回布尔值/长度，不返回明文） |
 | `ENABLE_AUTH_API` | ⚙️ | `true/false`，控制是否强制登录后才能使用上传 API |
 | `TG_BOT_TOKEN` / `TG_CHAT_ID` | ⚙️ | Telegram Bot Token 与频道 ID，启用 TG 上传/删除功能必填 |
@@ -115,6 +116,7 @@ BASIC_PASS=super-secret
 REGULAR_USER=user
 REGULAR_PASS=user123
 SECRET=00Fv/YUm0enwy04IgP4KoNOWLODe2iJ1tvBzr+4kEZ8=
+AUTH_URL=https://your-domain.example
 ENABLE_AUTH_API=true
 AUTH_DEBUG_TOKEN=replace-with-a-random-token
 TG_BOT_TOKEN=123456:ABC-DEF
@@ -123,6 +125,11 @@ RATINGAPI=https://nsfwapi.example.com/api/nsfw/classify
 ```
 
 > 修改 Cloudflare Pages 的环境变量后，请重新部署 Production，否则线上运行时可能仍然使用旧值。
+>
+> 如果登录报 `MissingCSRF`，优先检查三件事：
+> 1. 已重新部署 Production；
+> 2. `AUTH_URL` 与当前线上访问域名完全一致；
+> 3. `/api/auth/csrf` 没有被缓存或被其他代理规则改写。
 
 ---
 

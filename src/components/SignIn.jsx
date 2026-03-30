@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { signIn } from "next-auth/react";
+import { getCsrfToken, signIn } from "next-auth/react";
 import { ToastContainer, toast } from "react-toastify";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faImages, faMoon, faSun } from "@fortawesome/free-solid-svg-icons";
@@ -65,10 +65,12 @@ export function LoginPage() {
     setSubmitting(true);
 
     try {
+      const csrfToken = await getCsrfToken();
       const result = await signIn("credentials", {
         redirect: false,
         username: username.trim(),
         password: password.trim(),
+        csrfToken,
       });
 
       if (result?.error) {
@@ -77,6 +79,7 @@ export function LoginPage() {
           Configuration: "认证配置异常，请检查 Cloudflare 的环境变量和 SECRET 是否生效",
           AccessDenied: "访问被拒绝，请确认账号权限配置",
           CallbackRouteError: "登录回调异常，请检查服务端日志或认证配置",
+          MissingCSRF: "缺少 CSRF 校验令牌。通常是 Cloudflare 线上部署未刷新、域名不一致，或 /api/auth/csrf 未正确返回 token/cookie",
         };
         const message = errorMap[result.error] || `登录失败：${result.error}`;
         toast.error(message);
