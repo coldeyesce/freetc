@@ -127,7 +127,7 @@ RATINGAPI=https://nsfwapi.example.com/api/nsfw/classify
 > 修改 Cloudflare Pages 的环境变量后，请重新部署 Production，否则线上运行时可能仍然使用旧值。
 >
 > 当前版本已改为自定义 `HttpOnly` 会话 cookie 登录，不再依赖 NextAuth 的 CSRF 流程。
-> 同时保留了 `/api/auth/providers`、`/api/auth/csrf`、`/api/auth/callback/credentials` 的兼容层，避免 Cloudflare 在前端资源切换期间因为旧 bundle 继续走 NextAuth 登录而报 `MissingCSRF`。
+> 如果线上仍然提示 `MissingCSRF`，通常说明 Cloudflare 还在跑旧部署，先重新部署 Production 再试。
 
 ---
 
