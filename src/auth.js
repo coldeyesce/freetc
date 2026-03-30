@@ -103,9 +103,28 @@ export function getSessionCookieOptions() {
   };
 }
 
+function readCookieFromHeader(request, name) {
+  const raw = request?.headers?.get?.("cookie") || request?.headers?.get?.("Cookie") || "";
+  if (!raw) return "";
+  const parts = raw.split(";");
+  for (const part of parts) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) {
+      return rest.join("=");
+    }
+  }
+  return "";
+}
+
 export async function auth(request) {
-  const serverToken = request?.cookies?.get?.(COOKIE_NAME)?.value ?? cookies().get(COOKIE_NAME)?.value;
-  const clientToken = request?.cookies?.get?.(CLIENT_COOKIE_NAME)?.value ?? cookies().get(CLIENT_COOKIE_NAME)?.value;
+  const serverToken =
+    readCookieFromHeader(request, COOKIE_NAME) ||
+    request?.cookies?.get?.(COOKIE_NAME)?.value ||
+    cookies().get(COOKIE_NAME)?.value;
+  const clientToken =
+    readCookieFromHeader(request, CLIENT_COOKIE_NAME) ||
+    request?.cookies?.get?.(CLIENT_COOKIE_NAME)?.value ||
+    cookies().get(CLIENT_COOKIE_NAME)?.value;
   const token = serverToken || clientToken;
   const session = await readSessionToken(token);
   if (!session) return null;
