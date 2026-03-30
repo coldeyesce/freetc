@@ -19,6 +19,35 @@ export function LoginPage() {
     setTheme(hour >= 18 || hour < 7 ? "dark" : "light");
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkSession = async () => {
+      try {
+        const response = await fetch("/api/enableauthapi/isauth", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+        if (cancelled) return;
+
+        if (data?.success && data?.role) {
+          window.location.href = data.role === "admin" ? "/admin" : "/";
+        }
+      } catch (error) {
+        console.error("session probe failed:", error);
+      }
+    };
+
+    checkSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const isDark = theme === "dark";
 
   const backgroundClass = useMemo(
