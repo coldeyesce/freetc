@@ -3,10 +3,11 @@ import { LoginPage } from "@/components/SignIn";
 import { redirect } from "next/navigation";
 
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export default async function SignInPage() {
     const session = await auth();
-    // console.log(session);
 
     if (session?.user?.role === "admin") {
         return redirect('/admin');

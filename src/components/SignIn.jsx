@@ -82,10 +82,11 @@ export function LoginPage() {
         toast.error(message);
         console.error("login error result:", result);
       } else {
+        const target = result.role === "admin" ? "/admin" : "/";
         toast.success("登录成功，正在跳转...");
         setTimeout(() => {
-          window.location.reload();
-        }, 800);
+          window.location.href = target;
+        }, 500);
       }
     } catch (error) {
       toast.error("登录出现异常，请稍后再试");
